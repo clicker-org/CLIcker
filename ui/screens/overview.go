@@ -30,11 +30,15 @@ func NewOverviewModel(
 	worldReg *world.WorldRegistry,
 	width, height int,
 ) OverviewModel {
+	mapH := height - 3
+	if mapH < 3 {
+		mapH = 3
+	}
 	return OverviewModel{
 		t:        t,
 		gs:       gs,
 		worldReg: worldReg,
-		gmap:     components.GalaxyMap{Width: width, Height: height},
+		gmap:     components.GalaxyMap{Width: width, Height: mapH},
 		width:    width,
 		height:   height,
 	}
@@ -71,34 +75,48 @@ func (m OverviewModel) Update(msg tea.Msg) (OverviewModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.gmap.Width = msg.Width
-		m.gmap.Height = msg.Height
+		mapH := msg.Height - 3
+		if mapH < 3 {
+			mapH = 3
+		}
+		m.gmap.Height = mapH
 	}
 	return m, nil
 }
 
 func (m OverviewModel) View() string {
+	bg := lipgloss.Color(m.t.Background())
 	worldIDs := m.worldReg.IDs()
-	divider := strings.Repeat("─", m.width)
 
-	// Footer is always 3 lines: divider + stats + help.
-	const footerLines = 3
-	mapHeight := m.height - footerLines
-	if mapHeight < 3 {
-		mapHeight = 3
-	}
-
-	// Galaxy map expands to fill the available vertical space.
+	// Galaxy map fills available space; gmap handles its own height via lipgloss.Place.
 	mapArea := lipgloss.NewStyle().
 		Width(m.width).
-		Height(mapHeight).
-		Render(m.gmap.View(worldIDs))
+		Background(bg).
+		Render(m.gmap.View(worldIDs, m.t))
+
+	divider := lipgloss.NewStyle().
+		Width(m.width).
+		Background(bg).
+		Foreground(lipgloss.Color(m.t.BorderColor())).
+		Render(strings.Repeat("─", m.width))
 
 	statsLine := ""
 	if m.gs != nil {
 		p := m.gs.Player
-		statsLine = fmt.Sprintf("  GC: %.2f GC  |  LVL: %d  |  XP: %d", p.GeneralCoins, p.Level, p.XP)
+		statsLine = fmt.Sprintf("  General Coins: %.2f GC  |  LVL: %d  |  XP: %d", p.GeneralCoins, p.Level, p.XP)
 	}
-	helpLine := "  [Enter] Enter World   [D] Dashboard   [Q] Quit   [?] Help"
+	styledStats := lipgloss.NewStyle().
+		Width(m.width).
+		Background(bg).
+		Foreground(lipgloss.Color(m.t.CoinColor())).
+		Render(statsLine)
 
-	return mapArea + "\n" + divider + "\n" + statsLine + "\n" + helpLine
+	helpLine := "  [Enter] Enter World   [D] Dashboard   [Q] Quit   [?] Help"
+	styledHelp := lipgloss.NewStyle().
+		Width(m.width).
+		Background(bg).
+		Foreground(lipgloss.Color(m.t.DimText())).
+		Render(helpLine)
+
+	return mapArea + "\n" + divider + "\n" + styledStats + "\n" + styledHelp
 }

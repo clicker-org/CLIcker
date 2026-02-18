@@ -40,10 +40,17 @@ func (m DashboardModel) Update(msg tea.Msg) (DashboardModel, tea.Cmd) {
 }
 
 func (m DashboardModel) View() string {
-	divider := strings.Repeat("─", m.width)
+	bg := lipgloss.Color(m.t.Background())
+	fg := lipgloss.Color(m.t.PrimaryText())
+	dimFg := lipgloss.Color(m.t.DimText())
+	borderFg := lipgloss.Color(m.t.BorderColor())
+
+	dividerStr := strings.Repeat("─", m.width)
+	divider := lipgloss.NewStyle().Width(m.width).Background(bg).Foreground(borderFg).Render(dividerStr)
+
 	var sb strings.Builder
-	sb.WriteString("\n  DASHBOARD (Phase 5)\n")
-	sb.WriteString("  " + divider[:min(18, len(divider))] + "\n\n")
+	sb.WriteString("\n  DASHBOARD (Phase 4)\n")
+	sb.WriteString("  " + dividerStr[:min(18, len(dividerStr))] + "\n\n")
 	if m.gs != nil {
 		p := m.gs.Player
 		sb.WriteString(fmt.Sprintf("  Level:          %d\n", p.Level))
@@ -52,10 +59,15 @@ func (m DashboardModel) View() string {
 		sb.WriteString(fmt.Sprintf("  Total Clicks:   %d\n", p.TotalClicks))
 		sb.WriteString(fmt.Sprintf("  Time Played:    %.0fs\n", p.TotalPlaySeconds))
 	}
-	content := sb.String()
-	// Fill available height; footer line pinned at bottom via Height.
-	body := lipgloss.NewStyle().Width(m.width).Height(m.height - 2).Render(content)
-	return body + "\n" + divider + "\n  [Esc] Back to Overview"
+	body := lipgloss.NewStyle().
+		Width(m.width).
+		Height(m.height - 2).
+		Background(bg).
+		Foreground(fg).
+		Render(sb.String())
+
+	helpLine := lipgloss.NewStyle().Width(m.width).Background(bg).Foreground(dimFg).Render("  [Esc] Back to Overview")
+	return body + "\n" + divider + "\n" + helpLine
 }
 
 func min(a, b int) int {

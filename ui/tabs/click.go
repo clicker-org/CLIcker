@@ -19,6 +19,7 @@ type coinFloatEndMsg struct{}
 type ClickTabModel struct {
 	eng          *engine.Engine
 	worldID      string
+	t            theme.Theme
 	width        int
 	height       int
 	clickFlash   bool
@@ -45,6 +46,7 @@ func NewClickTab(
 	return ClickTabModel{
 		eng:     eng,
 		worldID: worldID,
+		t:       t,
 		width:   width,
 		height:  height,
 		anim:    anim,
@@ -64,6 +66,13 @@ func (m ClickTabModel) Init() tea.Cmd {
 		return m.anim.Init()
 	}
 	return nil
+}
+
+// Resize returns a copy of the model with updated dimensions.
+func (m ClickTabModel) Resize(w, h int) ClickTabModel {
+	m.width = w
+	m.height = h
+	return m
 }
 
 func (m ClickTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -93,45 +102,62 @@ func (m ClickTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ClickTabModel) View() string {
-	ws := m.eng.State.Worlds[m.worldID]
+	bg := lipgloss.Color(m.t.Background())
+	coinFg := lipgloss.Color(m.t.CoinColor())
+	dimFg := lipgloss.Color(m.t.DimText())
 
-	var sb strings.Builder
+	// Click box width: half the terminal, minimum 28 chars.
+	boxWidth := m.width / 2
+	if boxWidth < 28 {
+		boxWidth = 28
+	}
 
-	// Top animation strip.
-	if m.anim != nil {
-		sb.WriteString(m.anim.View(m.width, 2))
-		sb.WriteByte('\n')
+	borderSt := m.borderStyle.Width(boxWidth)
+	if m.clickFlash {
+		borderSt = m.flashStyle.Width(boxWidth)
 	}
 
 	// Click zone.
-	clickContent := "  PRESS SPACEBAR  \n     to mine TC   "
-	borderSt := m.borderStyle
-	if m.clickFlash {
-		borderSt = m.flashStyle
-	}
-	sb.WriteString(borderSt.Render(clickContent))
-	sb.WriteByte('\n')
+	clickBox := borderSt.Align(lipgloss.Center).Render("PRESS SPACEBAR\nto mine coins")
 
-	// Coin float.
+	// Coin float (briefly visible after each click).
+	var floatLine string
 	if m.coinFloat && m.lastCoinGain > 0 {
-		sb.WriteString(fmt.Sprintf("  +%.1f TC\n", m.lastCoinGain))
-	} else {
-		sb.WriteString("\n")
+		floatLine = lipgloss.NewStyle().Foreground(coinFg).Render(
+			fmt.Sprintf("+%.1f TC", m.lastCoinGain))
 	}
 
 	// Stats.
 	clickPower := m.eng.ClickPower(m.worldID, 1.0)
 	cps := 0.0
-	if ws != nil {
+	if ws := m.eng.State.Worlds[m.worldID]; ws != nil {
 		cps = ws.CPS
 	}
-	sb.WriteString(fmt.Sprintf("  Click Power: %.2f TC/click\n", clickPower))
-	sb.WriteString(fmt.Sprintf("  CPS: %.2f\n", cps))
+	statsLine := lipgloss.NewStyle().Foreground(dimFg).Render(
+		fmt.Sprintf("Click Power: %.2f TC/click    CPS: %.2f", clickPower, cps))
 
-	// Bottom animation strip.
-	if m.anim != nil {
-		sb.WriteString(m.anim.View(m.width, 2))
+	// Center block: click box + coin float placeholder + blank line + stats.
+	centerBlock := strings.Join([]string{clickBox, floatLine, "", statsLine}, "\n")
+
+	// Lay out: 3-line animation strips pinned to top and bottom edges,
+	// with the center block placed in the remaining space.
+	const animH = 3
+	if m.anim != nil && m.height > animH*2+4 {
+		innerH := m.height - animH*2
+		topAnim := lipgloss.NewStyle().Width(m.width).Background(bg).
+			Render(m.anim.View(m.width, animH))
+		bottomAnim := lipgloss.NewStyle().Width(m.width).Background(bg).
+			Render(m.anim.View(m.width, animH))
+		inner := lipgloss.Place(m.width, innerH,
+			lipgloss.Center, lipgloss.Center,
+			centerBlock,
+			lipgloss.WithWhitespaceBackground(bg))
+		return topAnim + "\n" + inner + "\n" + bottomAnim
 	}
 
-	return sb.String()
+	// No animation (or too short): center content in available space.
+	return lipgloss.Place(m.width, m.height,
+		lipgloss.Center, lipgloss.Center,
+		centerBlock,
+		lipgloss.WithWhitespaceBackground(bg))
 }

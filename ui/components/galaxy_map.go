@@ -2,6 +2,9 @@ package components
 
 import (
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/clicker-org/clicker/ui/theme"
 )
 
 // GalaxyMap renders a stub ASCII galaxy map with navigation.
@@ -53,20 +56,39 @@ func (g *GalaxyMap) FocusedWorldID(worldIDs []string) string {
 	return worldIDs[g.FocusedIndex]
 }
 
-// View renders a placeholder galaxy map with world list.
-func (g GalaxyMap) View(worldIDs []string) string {
-	var sb strings.Builder
-	sb.WriteString("  ·  ✦        · *   ✦  ·\n")
-	sb.WriteString("         GALAXY MAP\n\n")
+// View renders a placeholder galaxy map with world list centered in the available space.
+func (g GalaxyMap) View(worldIDs []string, t theme.Theme) string {
+	bg := lipgloss.Color(t.Background())
+	accentFg := lipgloss.Color(t.AccentColor())
+	dimFg := lipgloss.Color(t.DimText())
+	primaryFg := lipgloss.Color(t.PrimaryText())
+
+	focusedStyle := lipgloss.NewStyle().Foreground(accentFg).Bold(true)
+	normalStyle := lipgloss.NewStyle().Foreground(dimFg)
+	headerStyle := lipgloss.NewStyle().Foreground(primaryFg)
+
+	var lines []string
+	lines = append(lines, headerStyle.Render("·  ✦        · *   ✦  ·"))
+	lines = append(lines, headerStyle.Render("      GALAXY MAP"))
+	lines = append(lines, "")
+
 	for i, id := range worldIDs {
-		cursor := "  "
 		if i == g.FocusedIndex {
-			cursor = "> "
+			lines = append(lines, focusedStyle.Render("▶  "+id))
+		} else {
+			lines = append(lines, normalStyle.Render("   "+id))
 		}
-		sb.WriteString(cursor + "[ " + id + " ]\n")
 	}
 	if len(worldIDs) == 0 {
-		sb.WriteString("  (no worlds registered)\n")
+		lines = append(lines, normalStyle.Render("(no worlds registered)"))
 	}
-	return sb.String()
+
+	h := g.Height
+	if h <= 0 {
+		h = 20
+	}
+	return lipgloss.Place(g.Width, h,
+		lipgloss.Center, lipgloss.Center,
+		strings.Join(lines, "\n"),
+		lipgloss.WithWhitespaceBackground(bg))
 }

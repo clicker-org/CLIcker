@@ -54,13 +54,17 @@ func NewWorldModel(
 	animKey string,
 	width, height int,
 ) WorldModel {
+	contentH := height - 4
+	if contentH < 3 {
+		contentH = 3
+	}
 	return WorldModel{
 		t:         t,
 		eng:       eng,
 		gs:        gs,
 		worldID:   worldID,
 		activeTab: TabClick,
-		clickTab:  tabs.NewClickTab(eng, worldID, t, animReg, animKey, width, height-7),
+		clickTab:  tabs.NewClickTab(eng, worldID, t, animReg, animKey, width, contentH),
 		statusBar: components.NewStatusBar(t, width),
 		width:     width,
 		height:    height,
@@ -83,6 +87,11 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.statusBar.SetWidth(msg.Width)
+		contentH := msg.Height - 4
+		if contentH < 3 {
+			contentH = 3
+		}
+		m.clickTab = m.clickTab.Resize(msg.Width, contentH)
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":
@@ -140,6 +149,9 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 }
 
 func (m WorldModel) View() string {
+	bg := lipgloss.Color(m.t.Background())
+	borderFg := lipgloss.Color(m.t.BorderColor())
+
 	type tabDef struct {
 		id    TabID
 		label string
@@ -159,8 +171,17 @@ func (m WorldModel) View() string {
 			headerParts = append(headerParts, m.dimStyle.Render(tab.label))
 		}
 	}
-	header := "  " + strings.Join(headerParts, "  ") + "\n"
-	divider := strings.Repeat("─", m.width) + "\n"
+	header := lipgloss.NewStyle().
+		Width(m.width).
+		Background(bg).
+		Padding(0, 1).
+		Render(strings.Join(headerParts, "  "))
+
+	divider := lipgloss.NewStyle().
+		Width(m.width).
+		Background(bg).
+		Foreground(borderFg).
+		Render(strings.Repeat("─", m.width))
 
 	var content string
 	switch m.activeTab {
@@ -183,10 +204,11 @@ func (m WorldModel) View() string {
 	contentArea := lipgloss.NewStyle().
 		Width(m.width).
 		Height(contentHeight).
+		Background(bg).
 		Render(content)
 
 	ws := m.eng.State.Worlds[m.worldID]
 	statusBar := m.statusBar.View(*m.gs, m.worldID, ws)
 
-	return header + divider + contentArea + divider + statusBar
+	return header + "\n" + divider + "\n" + contentArea + "\n" + divider + "\n" + statusBar
 }
