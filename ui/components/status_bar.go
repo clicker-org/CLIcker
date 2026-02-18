@@ -44,9 +44,14 @@ func (s StatusBar) View(gs gamestate.GameState, activeWorldID string, ws *world.
 			gs.Player.XP,
 		))
 	}
+	coinName := activeWorldID
+	if w, ok := world.DefaultRegistry.Get(activeWorldID); ok {
+		coinName = w.CoinName()
+	}
 	return s.style.Render(fmt.Sprintf(
-		"%s | TC: %s | CPS: %.1f | Prestige: %d | LVL: %d XP: %d",
+		"%s | %s: %s | CPS: %.1f | Prestige: %d | LVL: %d XP: %d",
 		activeWorldID,
+		coinName,
 		economy.FormatCoinsBare(ws.Coins),
 		ws.CPS,
 		ws.PrestigeCount,
