@@ -14,32 +14,37 @@ import (
 	"github.com/clicker-org/clicker/ui/theme"
 )
 
-// TabID identifies which world tab is active.
-type TabID int
+// ModalType identifies which overlay modal is currently open.
+type ModalType int
 
 const (
-	TabClick TabID = iota
-	TabShop
-	TabPrestige
-	TabAchievements
+	ModalNone         ModalType = iota
+	ModalShop                   // focusedHeader index 1
+	ModalPrestige               // focusedHeader index 2
+	ModalAchievements           // focusedHeader index 3
 )
 
-// WorldModel hosts the tabbed world screen.
+// headerCount is the number of items in the top header bar.
+const headerCount = 4
+
+// WorldModel hosts the world screen. The click view is always the background;
+// Shop, Prestige, and Achievements open as modal overlays on top.
 type WorldModel struct {
 	t       theme.Theme
 	eng     *engine.Engine
 	gs      *gamestate.GameState
 	worldID string
 
-	// focusedTab is where the arrow-key cursor sits; activeTab is what's displayed.
-	// They differ only while the player is navigating with arrows before pressing Enter.
-	// First-letter shortcuts and Tab/Shift+Tab keep them in sync (instant switch).
-	focusedTab  TabID
-	activeTab   TabID
 	clickTab    tabs.ClickTabModel
 	shopTab     tabs.ShopTabModel
 	prestigeTab tabs.PrestigeTabModel
 	achTab      tabs.AchievementsTabModel
+
+	// focusedHeader is the header item the arrow-key cursor sits on (0–3).
+	// activeModal is the modal currently displayed; ModalNone means no overlay.
+	focusedHeader int
+	activeModal   ModalType
+	modal         components.Modal
 
 	statusBar    components.StatusBar
 	width        int
@@ -59,27 +64,21 @@ func NewWorldModel(
 	animKey string,
 	width, height int,
 ) WorldModel {
-	contentH := height - 4
-	if contentH < 3 {
-		contentH = 3
-	}
+	contentH := max(height-4, 3)
 	return WorldModel{
-		t:          t,
-		eng:        eng,
-		gs:         gs,
-		worldID:    worldID,
-		focusedTab: TabClick,
-		activeTab:  TabClick,
-		clickTab:   tabs.NewClickTab(eng, worldID, t, animReg, animKey, width, contentH),
-		statusBar:  components.NewStatusBar(t, width),
-		width:      width,
-		height:     height,
+		t:           t,
+		eng:         eng,
+		gs:          gs,
+		worldID:     worldID,
+		clickTab:    tabs.NewClickTab(eng, worldID, t, animReg, animKey, width, contentH),
+		statusBar:   components.NewStatusBar(t, width),
+		width:       width,
+		height:      height,
+		activeModal: ModalNone,
 		activeStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(t.AccentColor())).
 			Bold(true).
 			Underline(true),
-		// Focused-but-not-active: accent colour without bold so the cursor is
-		// visible but clearly distinct from the currently displayed tab.
 		focusedStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(t.AccentColor())),
 		dimStyle: lipgloss.NewStyle().
@@ -97,110 +96,193 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.statusBar.SetWidth(msg.Width)
-		contentH := msg.Height - 4
-		if contentH < 3 {
-			contentH = 3
-		}
-		m.clickTab = m.clickTab.Resize(msg.Width, contentH)
+		m.clickTab = m.clickTab.Resize(msg.Width, max(msg.Height-4, 3))
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":
+			if m.activeModal != ModalNone {
+				m.activeModal = ModalNone
+				return m, nil
+			}
 			return m, func() tea.Msg { return messages.NavigateToOverviewMsg{} }
-		// First-letter shortcuts: instant switch, keeps focused in sync.
+
 		case "c", "C":
-			m.focusedTab, m.activeTab = TabClick, TabClick
+			// C always returns to the plain click view (closes any open modal).
+			m.activeModal = ModalNone
+			m.focusedHeader = 0
 			return m, nil
+
 		case "s", "S":
-			m.focusedTab, m.activeTab = TabShop, TabShop
+			if m.activeModal == ModalNone {
+				m.activeModal = ModalShop
+				m.focusedHeader = 1
+				m.modal = components.NewModal(m.t)
+			}
 			return m, nil
+
 		case "p", "P":
-			m.focusedTab, m.activeTab = TabPrestige, TabPrestige
+			if m.activeModal == ModalNone {
+				m.activeModal = ModalPrestige
+				m.focusedHeader = 2
+				m.modal = components.NewModal(m.t)
+			}
 			return m, nil
+
 		case "a", "A":
-			m.focusedTab, m.activeTab = TabAchievements, TabAchievements
+			if m.activeModal == ModalNone {
+				m.activeModal = ModalAchievements
+				m.focusedHeader = 3
+				m.modal = components.NewModal(m.t)
+			}
 			return m, nil
-		// Tab / Shift+Tab: cycle instantly, keeps focused in sync.
+
 		case "tab":
-			m.activeTab = (m.activeTab + 1) % 4
-			m.focusedTab = m.activeTab
+			if m.activeModal == ModalNone {
+				m.focusedHeader = (m.focusedHeader + 1) % headerCount
+			}
 			return m, nil
+
 		case "shift+tab":
-			m.activeTab = (m.activeTab + 3) % 4
-			m.focusedTab = m.activeTab
+			if m.activeModal == ModalNone {
+				m.focusedHeader = (m.focusedHeader + headerCount - 1) % headerCount
+			}
 			return m, nil
 		}
-	// Arrow keys move the focused cursor; Enter (NavConfirmMsg) activates it.
+		// Block all other key input from reaching tabs when a modal is open.
+		if m.activeModal != ModalNone {
+			return m, nil
+		}
+
+	case components.ModalCloseMsg:
+		m.activeModal = ModalNone
+		return m, nil
+
+	// Arrow-key cursor: moves the header focus when no modal is open.
 	case messages.NavLeftMsg:
-		m.focusedTab = (m.focusedTab + 3) % 4
+		if m.activeModal == ModalNone {
+			m.focusedHeader = (m.focusedHeader + headerCount - 1) % headerCount
+		}
 		return m, nil
+
 	case messages.NavRightMsg:
-		m.focusedTab = (m.focusedTab + 1) % 4
+		if m.activeModal == ModalNone {
+			m.focusedHeader = (m.focusedHeader + 1) % headerCount
+		}
 		return m, nil
-	case messages.NavConfirmMsg:
-		m.activeTab = m.focusedTab
-		return m, nil
-	// NavUp/NavDown fall through to the active tab for list scrolling.
 	}
 
-	// Route message to the active tab.
-	var cmd tea.Cmd
-	switch m.activeTab {
-	case TabClick:
+	var cmds []tea.Cmd
+
+	// Forward nav messages to the modal component when open.
+	if m.activeModal != ModalNone {
+		switch msg.(type) {
+		case messages.NavUpMsg, messages.NavDownMsg, messages.NavConfirmMsg:
+			newModal, c := m.modal.Update(msg)
+			m.modal = newModal
+			if c != nil {
+				cmds = append(cmds, c)
+			}
+			return m, tea.Batch(cmds...)
+		}
+	} else {
+		// When no modal: Enter (NavConfirmMsg) opens the focused header's modal.
+		if _, ok := msg.(messages.NavConfirmMsg); ok {
+			switch m.focusedHeader {
+			case 1:
+				m.activeModal = ModalShop
+				m.modal = components.NewModal(m.t)
+			case 2:
+				m.activeModal = ModalPrestige
+				m.modal = components.NewModal(m.t)
+			case 3:
+				m.activeModal = ModalAchievements
+				m.modal = components.NewModal(m.t)
+			}
+			return m, nil
+		}
+	}
+
+	// Click tab always receives non-key messages (background animations).
+	// It also receives everything when no modal is open.
+	_, isKey := msg.(tea.KeyMsg)
+	if !isKey || m.activeModal == ModalNone {
 		newModel, c := m.clickTab.Update(msg)
 		if ct, ok := newModel.(tabs.ClickTabModel); ok {
 			m.clickTab = ct
 		}
-		cmd = c
-	case TabShop:
+		if c != nil {
+			cmds = append(cmds, c)
+		}
+	}
+
+	// Active modal tab receives messages when open.
+	switch m.activeModal {
+	case ModalShop:
 		newModel, c := m.shopTab.Update(msg)
 		if st, ok := newModel.(tabs.ShopTabModel); ok {
 			m.shopTab = st
 		}
-		cmd = c
-	case TabPrestige:
+		if c != nil {
+			cmds = append(cmds, c)
+		}
+	case ModalPrestige:
 		newModel, c := m.prestigeTab.Update(msg)
 		if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
 			m.prestigeTab = pt
 		}
-		cmd = c
-	case TabAchievements:
+		if c != nil {
+			cmds = append(cmds, c)
+		}
+	case ModalAchievements:
 		newModel, c := m.achTab.Update(msg)
 		if at, ok := newModel.(tabs.AchievementsTabModel); ok {
 			m.achTab = at
 		}
-		cmd = c
+		if c != nil {
+			cmds = append(cmds, c)
+		}
 	}
-	return m, cmd
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m WorldModel) View() string {
 	bg := lipgloss.Color(m.t.Background())
 	borderFg := lipgloss.Color(m.t.BorderColor())
 
-	type tabDef struct {
-		id    TabID
+	// Header: [C]lick is always the active background view.
+	// Arrow keys move focusedHeader; Enter opens the focused modal.
+	type headerItem struct {
 		label string
+		modal ModalType
 	}
-	tabDefs := []tabDef{
-		{TabClick, "[C]lick"},
-		{TabShop, "[S]hop"},
-		{TabPrestige, "[P]restige"},
-		{TabAchievements, "[A]chievements"},
+	items := []headerItem{
+		{"[C]lick", ModalNone},
+		{"[S]hop", ModalShop},
+		{"[P]restige", ModalPrestige},
+		{"[A]chievements", ModalAchievements},
 	}
 
-	var headerParts []string
-	for _, tab := range tabDefs {
+	headerParts := make([]string, len(items))
+	for i, item := range items {
+		var style lipgloss.Style
 		switch {
-		case tab.id == m.activeTab:
-			// Active: bold + underline (content is showing).
-			headerParts = append(headerParts, m.activeStyle.Render(tab.label))
-		case tab.id == m.focusedTab:
-			// Focused but not yet confirmed: accent colour, no bold — cursor is here.
-			headerParts = append(headerParts, m.focusedStyle.Render(tab.label))
+		case m.activeModal != ModalNone && item.modal == m.activeModal:
+			// The currently-open modal's header item.
+			style = m.activeStyle
+		case m.activeModal == ModalNone && i == m.focusedHeader:
+			// Arrow-key cursor is here.
+			style = m.focusedStyle
+		case m.activeModal == ModalNone && item.modal == ModalNone:
+			// Click is the active background view (when cursor is elsewhere).
+			style = m.activeStyle
 		default:
-			headerParts = append(headerParts, m.dimStyle.Render(tab.label))
+			style = m.dimStyle
 		}
+		headerParts[i] = style.Render(item.label)
 	}
+
 	header := lipgloss.NewStyle().
 		Width(m.width).
 		Background(bg).
@@ -213,29 +295,31 @@ func (m WorldModel) View() string {
 		Foreground(borderFg).
 		Render(strings.Repeat("─", m.width))
 
-	var content string
-	switch m.activeTab {
-	case TabClick:
-		content = m.clickTab.View()
-	case TabShop:
-		content = m.shopTab.View()
-	case TabPrestige:
-		content = m.prestigeTab.View()
-	case TabAchievements:
-		content = m.achTab.View()
-	}
+	contentHeight := max(m.height-4, 3)
 
-	// Content area fills the space between the two dividers.
-	// Layout: header(1) + divider(1) + content(n) + divider(1) + statusbar(1) = height
-	contentHeight := m.height - 4
-	if contentHeight < 3 {
-		contentHeight = 3
-	}
-	contentArea := lipgloss.NewStyle().
+	// Always render the click tab as the background content.
+	bgContent := lipgloss.NewStyle().
 		Width(m.width).
 		Height(contentHeight).
 		Background(bg).
-		Render(content)
+		Render(m.clickTab.View())
+
+	var contentArea string
+	if m.activeModal != ModalNone {
+		var title, content string
+		switch m.activeModal {
+		case ModalShop:
+			title, content = "SHOP", m.shopTab.View()
+		case ModalPrestige:
+			title, content = "PRESTIGE", m.prestigeTab.View()
+		case ModalAchievements:
+			title, content = "ACHIEVEMENTS", m.achTab.View()
+		}
+		// Overlay the modal on top of the live click-tab background.
+		contentArea = m.modal.View(title, content, bgContent, m.width, contentHeight)
+	} else {
+		contentArea = bgContent
+	}
 
 	ws := m.eng.State.Worlds[m.worldID]
 	statusBar := m.statusBar.View(*m.gs, m.worldID, ws)
