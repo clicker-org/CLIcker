@@ -1,0 +1,49 @@
+# binaries
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# test binaries
+*.test
+*.out
+
+# go workspace
+go.work
+go.work.sum
+
+# dependency cache
+vendor/
+
+# build cache (usually in $GOPATH, but just in case)
+*.a
+
+# save file (don't commit player saves)
+~/.config/clicker/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.orig
+
+# AI assistant files
+CLAUDE.md
+.claude/
+.cursor/
+.copilot/
+.aider*

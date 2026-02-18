@@ -1,0 +1,132 @@
+id = "terra"
+name = "Terra"
+coin_name = "Terra-Coins"
+coin_symbol = "TC"
+accent_color = "#4ade80"
+ambient_animation = "stars"
+base_exchange_rate = 0.001
+offline_percentage = 0.10
+offline_cap_hours = 8.0
+
+[[buy_ons]]
+id = "auto_miner"
+name = "Auto Miner"
+description = "A simple automated mining rig that extracts ore around the clock."
+base_cost = 50.0
+cost_scaling = 1.15
+base_cps = 0.1
+level_requirement = 0
+
+[[buy_ons]]
+id = "drill_bot"
+name = "Drill Bot"
+description = "A mechanized drill bot capable of boring deep into Terra's crust."
+base_cost = 500.0
+cost_scaling = 1.15
+base_cps = 1.0
+level_requirement = 0
+
+[[buy_ons]]
+id = "smelter"
+name = "Smelter"
+description = "Converts raw ore to refined coins at high throughput."
+base_cost = 5000.0
+cost_scaling = 1.15
+base_cps = 8.0
+level_requirement = 2
+
+[[buy_ons]]
+id = "deep_excavator"
+name = "Deep Excavator"
+description = "Massive drilling platform that taps into Terra's deepest mineral veins."
+base_cost = 50000.0
+cost_scaling = 1.15
+base_cps = 47.0
+level_requirement = 5
+
+[[buy_ons]]
+id = "quantum_extractor"
+name = "Quantum Extractor"
+description = "Uses quantum tunneling to extract coins from any stratum simultaneously."
+base_cost = 500000.0
+cost_scaling = 1.15
+base_cps = 260.0
+level_requirement = 10
+
+[[buy_on_upgrades]]
+id = "turbo_miner"
+name = "Turbo Miner"
+description = "Doubles Auto Miner output with turbocharged drill heads."
+target_buy_on = "auto_miner"
+multiplier = 2.0
+cost = 500.0
+level_requirement = 0
+
+[[buy_on_upgrades]]
+id = "reinforced_drill"
+name = "Reinforced Drill"
+description = "Reinforced drill bits double Drill Bot efficiency."
+target_buy_on = "drill_bot"
+multiplier = 2.0
+cost = 5000.0
+level_requirement = 0
+
+[prestige_threshold]
+type = "coins_earned"
+value = 1000000.0
+
+[[completion_milestones]]
+id = "first_click"
+description = "Click for the first time"
+type = "clicks"
+value = 1.0
+weight = 0.05
+
+[[completion_milestones]]
+id = "coins_1k"
+description = "Earn 1,000 Terra-Coins"
+type = "coins_earned"
+value = 1000.0
+weight = 0.05
+
+[[completion_milestones]]
+id = "coins_10k"
+description = "Earn 10,000 Terra-Coins"
+type = "coins_earned"
+value = 10000.0
+weight = 0.10
+
+[[completion_milestones]]
+id = "coins_100k"
+description = "Earn 100,000 Terra-Coins"
+type = "coins_earned"
+value = 100000.0
+weight = 0.10
+
+[[completion_milestones]]
+id = "coins_1m"
+description = "Earn 1,000,000 Terra-Coins"
+type = "coins_earned"
+value = 1000000.0
+weight = 0.15
+
+[[completion_milestones]]
+id = "buy_ons_variety"
+description = "Own at least one of every buy-on"
+type = "buy_ons_variety"
+value = 5.0
+weight = 0.15
+
+[[completion_milestones]]
+id = "first_prestige"
+description = "Prestige Terra for the first time"
+type = "prestige_count"
+value = 1.0
+weight = 0.20
+
+[[completion_milestones]]
+id = "prestige_3"
+description = "Prestige Terra three times"
+type = "prestige_count"
+value = 3.0
+weight = 0.20
