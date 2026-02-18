@@ -12,6 +12,7 @@ import (
 	"github.com/clicker-org/clicker/internal/offline"
 	"github.com/clicker-org/clicker/internal/save"
 	"github.com/clicker-org/clicker/internal/world"
+	_ "github.com/clicker-org/clicker/internal/world/worlds"
 	clui "github.com/clicker-org/clicker/ui"
 	"github.com/clicker-org/clicker/ui/components/background"
 	"github.com/clicker-org/clicker/ui/screens"
@@ -28,8 +29,9 @@ func main() {
 		sf = save.DefaultSaveFile()
 	}
 
-	// create registries (worlds registered later in Phase 1).
-	worldReg := world.NewWorldRegistry()
+	// worlds self-register into DefaultRegistry via their init() functions
+	// (triggered by the blank import of internal/world/worlds above).
+	worldReg := world.DefaultRegistry
 	achievReg := achievement.NewAchievementRegistry()
 
 	// set up theme registry.

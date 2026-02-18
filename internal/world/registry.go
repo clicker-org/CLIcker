@@ -2,21 +2,22 @@ package world
 
 import "sync"
 
-// WorldRegistry is the central registry for all world implementations.
+// DefaultRegistry is the package-level world registry populated by world
+// init() functions. Worlds register themselves by importing the worlds package.
+var DefaultRegistry = NewWorldRegistry()
+
 type WorldRegistry struct {
 	mu     sync.RWMutex
 	worlds []World
 	byID   map[string]World
 }
 
-// NewWorldRegistry creates an empty WorldRegistry.
 func NewWorldRegistry() *WorldRegistry {
 	return &WorldRegistry{
 		byID: make(map[string]World),
 	}
 }
 
-// Register adds a World to the registry. Panics if the ID is already registered.
 func (r *WorldRegistry) Register(w World) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -27,7 +28,6 @@ func (r *WorldRegistry) Register(w World) {
 	r.byID[w.ID()] = w
 }
 
-// Get returns the World with the given ID and a found flag.
 func (r *WorldRegistry) Get(id string) (World, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -35,7 +35,6 @@ func (r *WorldRegistry) Get(id string) (World, bool) {
 	return w, ok
 }
 
-// List returns all registered worlds in insertion order.
 func (r *WorldRegistry) List() []World {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -44,7 +43,6 @@ func (r *WorldRegistry) List() []World {
 	return out
 }
 
-// IDs returns all registered world IDs in insertion order.
 func (r *WorldRegistry) IDs() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
