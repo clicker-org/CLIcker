@@ -54,8 +54,18 @@ func (m ShopTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	items := reg.ListBuyOns()
-	total := len(items)
-	if total == 0 {
+	if len(items) == 0 {
+		return m, nil
+	}
+
+	playerLevel := m.eng.State.Player.Level
+	lastUnlocked := -1
+	for i, b := range items {
+		if b.LevelRequirement() <= playerLevel {
+			lastUnlocked = i
+		}
+	}
+	if lastUnlocked < 0 {
 		return m, nil
 	}
 
@@ -70,16 +80,16 @@ func (m ShopTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case messages.NavDownMsg:
-		if m.cursor < total-1 {
+		if m.cursor < lastUnlocked {
 			m.cursor++
 			if m.cursor >= m.scroll+visCount {
 				m.scroll = m.cursor - visCount + 1
 			}
 		}
 	case messages.NavConfirmMsg:
-		if m.cursor < total {
+		if m.cursor <= lastUnlocked {
 			b := items[m.cursor]
-			m.eng.PurchaseBuyOn(m.worldID, b.ID(), m.eng.State.Player.Level)
+			m.eng.PurchaseBuyOn(m.worldID, b.ID(), playerLevel)
 		}
 	}
 
