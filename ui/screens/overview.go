@@ -47,30 +47,30 @@ func NewOverviewModel(
 func (m OverviewModel) Init() tea.Cmd { return nil }
 
 func (m OverviewModel) Update(msg tea.Msg) (OverviewModel, tea.Cmd) {
+	worldIDs := m.worldReg.IDs()
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		worldIDs := m.worldReg.IDs()
 		switch msg.String() {
 		case "d", "D":
 			return m, func() tea.Msg { return messages.NavigateToDashboardMsg{} }
-		case "enter":
-			id := m.gmap.FocusedWorldID(worldIDs)
-			if id == "" && len(worldIDs) > 0 {
-				id = worldIDs[0]
-			}
-			if id != "" {
-				wid := id
-				return m, func() tea.Msg { return messages.NavigateToWorldMsg{WorldID: wid} }
-			}
-		case "left", "h":
-			m.gmap.MoveLeft()
-		case "right", "l":
-			m.gmap.MoveRight(len(worldIDs))
-		case "up", "k":
-			m.gmap.MoveUp()
-		case "down", "j":
-			m.gmap.MoveDown(len(worldIDs))
 		}
+	case messages.NavConfirmMsg:
+		id := m.gmap.FocusedWorldID(worldIDs)
+		if id == "" && len(worldIDs) > 0 {
+			id = worldIDs[0]
+		}
+		if id != "" {
+			wid := id
+			return m, func() tea.Msg { return messages.NavigateToWorldMsg{WorldID: wid} }
+		}
+	case messages.NavLeftMsg:
+		m.gmap.MoveLeft()
+	case messages.NavRightMsg:
+		m.gmap.MoveRight(len(worldIDs))
+	case messages.NavUpMsg:
+		m.gmap.MoveUp()
+	case messages.NavDownMsg:
+		m.gmap.MoveDown(len(worldIDs))
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height

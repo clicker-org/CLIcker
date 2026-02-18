@@ -52,13 +52,17 @@ func (m OfflineReportModel) IsVisible() bool { return m.visible }
 func (m OfflineReportModel) Init() tea.Cmd { return nil }
 
 func (m OfflineReportModel) Update(msg tea.Msg) (OfflineReportModel, tea.Cmd) {
+	dismiss := func() tea.Cmd {
+		m.visible = false
+		return func() tea.Msg { return messages.OfflineReportDismissedMsg{} }
+	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "enter", "esc":
-			m.visible = false
-			return m, func() tea.Msg { return messages.OfflineReportDismissedMsg{} }
+		if msg.String() == "esc" {
+			return m, dismiss()
 		}
+	case messages.NavConfirmMsg:
+		return m, dismiss()
 	}
 	return m, nil
 }

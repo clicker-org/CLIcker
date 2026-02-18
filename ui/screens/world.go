@@ -31,17 +31,22 @@ type WorldModel struct {
 	gs      *gamestate.GameState
 	worldID string
 
+	// focusedTab is where the arrow-key cursor sits; activeTab is what's displayed.
+	// They differ only while the player is navigating with arrows before pressing Enter.
+	// First-letter shortcuts and Tab/Shift+Tab keep them in sync (instant switch).
+	focusedTab  TabID
 	activeTab   TabID
 	clickTab    tabs.ClickTabModel
 	shopTab     tabs.ShopTabModel
 	prestigeTab tabs.PrestigeTabModel
 	achTab      tabs.AchievementsTabModel
 
-	statusBar   components.StatusBar
-	width       int
-	height      int
-	activeStyle lipgloss.Style
-	dimStyle    lipgloss.Style
+	statusBar    components.StatusBar
+	width        int
+	height       int
+	activeStyle  lipgloss.Style
+	focusedStyle lipgloss.Style
+	dimStyle     lipgloss.Style
 }
 
 // NewWorldModel creates a WorldModel for the given world.
@@ -59,19 +64,24 @@ func NewWorldModel(
 		contentH = 3
 	}
 	return WorldModel{
-		t:         t,
-		eng:       eng,
-		gs:        gs,
-		worldID:   worldID,
-		activeTab: TabClick,
-		clickTab:  tabs.NewClickTab(eng, worldID, t, animReg, animKey, width, contentH),
-		statusBar: components.NewStatusBar(t, width),
-		width:     width,
-		height:    height,
+		t:          t,
+		eng:        eng,
+		gs:         gs,
+		worldID:    worldID,
+		focusedTab: TabClick,
+		activeTab:  TabClick,
+		clickTab:   tabs.NewClickTab(eng, worldID, t, animReg, animKey, width, contentH),
+		statusBar:  components.NewStatusBar(t, width),
+		width:      width,
+		height:     height,
 		activeStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(t.AccentColor())).
 			Bold(true).
 			Underline(true),
+		// Focused-but-not-active: accent colour without bold so the cursor is
+		// visible but clearly distinct from the currently displayed tab.
+		focusedStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(t.AccentColor())),
 		dimStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(t.DimText())),
 	}
@@ -96,25 +106,40 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 		switch msg.String() {
 		case "esc":
 			return m, func() tea.Msg { return messages.NavigateToOverviewMsg{} }
+		// First-letter shortcuts: instant switch, keeps focused in sync.
 		case "c", "C":
-			m.activeTab = TabClick
+			m.focusedTab, m.activeTab = TabClick, TabClick
 			return m, nil
 		case "s", "S":
-			m.activeTab = TabShop
+			m.focusedTab, m.activeTab = TabShop, TabShop
 			return m, nil
 		case "p", "P":
-			m.activeTab = TabPrestige
+			m.focusedTab, m.activeTab = TabPrestige, TabPrestige
 			return m, nil
 		case "a", "A":
-			m.activeTab = TabAchievements
+			m.focusedTab, m.activeTab = TabAchievements, TabAchievements
 			return m, nil
+		// Tab / Shift+Tab: cycle instantly, keeps focused in sync.
 		case "tab":
 			m.activeTab = (m.activeTab + 1) % 4
+			m.focusedTab = m.activeTab
 			return m, nil
 		case "shift+tab":
 			m.activeTab = (m.activeTab + 3) % 4
+			m.focusedTab = m.activeTab
 			return m, nil
 		}
+	// Arrow keys move the focused cursor; Enter (NavConfirmMsg) activates it.
+	case messages.NavLeftMsg:
+		m.focusedTab = (m.focusedTab + 3) % 4
+		return m, nil
+	case messages.NavRightMsg:
+		m.focusedTab = (m.focusedTab + 1) % 4
+		return m, nil
+	case messages.NavConfirmMsg:
+		m.activeTab = m.focusedTab
+		return m, nil
+	// NavUp/NavDown fall through to the active tab for list scrolling.
 	}
 
 	// Route message to the active tab.
@@ -165,9 +190,14 @@ func (m WorldModel) View() string {
 
 	var headerParts []string
 	for _, tab := range tabDefs {
-		if tab.id == m.activeTab {
+		switch {
+		case tab.id == m.activeTab:
+			// Active: bold + underline (content is showing).
 			headerParts = append(headerParts, m.activeStyle.Render(tab.label))
-		} else {
+		case tab.id == m.focusedTab:
+			// Focused but not yet confirmed: accent colour, no bold — cursor is here.
+			headerParts = append(headerParts, m.focusedStyle.Render(tab.label))
+		default:
 			headerParts = append(headerParts, m.dimStyle.Render(tab.label))
 		}
 	}

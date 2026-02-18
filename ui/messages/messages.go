@@ -22,3 +22,15 @@ type LevelUpMsg struct{ NewLevel int }
 
 // GameTickMsg carries engine events from a tick.
 type GameTickMsg struct{ Events []engine.EngineEvent }
+
+// Directional navigation messages — emitted by App for arrow/vim keys.
+// Screens respond to these instead of raw key strings so that new screens get
+// keyboard navigation without repeating key-string switch cases.
+//
+// The pattern:  Nav*Msg moves focus (cursor),  NavConfirmMsg activates it.
+// First-letter shortcuts bypass this flow and activate instantly.
+type NavUpMsg struct{}
+type NavDownMsg struct{}
+type NavLeftMsg struct{}
+type NavRightMsg struct{}
+type NavConfirmMsg struct{}

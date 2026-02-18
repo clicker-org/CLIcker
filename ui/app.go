@@ -136,7 +136,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		// Pass tick to active screen for animation updates.
-		a = a.routeToActiveScreen(msg)
+		var animCmd tea.Cmd
+		a, animCmd = a.routeToActiveScreen(msg)
+		if animCmd != nil {
+			cmds = append(cmds, animCmd)
+		}
 		return a, tea.Batch(cmds...)
 
 	case messages.AchievementUnlockedMsg:
@@ -177,12 +181,44 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Route remaining messages to active screen.
-	a = a.routeToActiveScreen(msg)
+	var screenCmd tea.Cmd
+	a, screenCmd = a.routeToActiveScreen(msg)
+	if screenCmd != nil {
+		cmds = append(cmds, screenCmd)
+	}
 
 	return a, tea.Batch(cmds...)
 }
 
 func (a App) routeKey(msg tea.KeyMsg, cmds []tea.Cmd) (tea.Model, tea.Cmd) {
+	// Translate arrow/vim keys and Enter to abstract nav messages.
+	// This is the single translation point — screens handle Nav*Msg instead of
+	// raw key strings so new screens get consistent navigation for free.
+	//
+	// Nav*Msg moves focus (cursor).  NavConfirmMsg activates the focused item.
+	// First-letter shortcuts in each screen bypass this flow and act instantly.
+	var navMsg tea.Msg
+	switch msg.String() {
+	case "up", "k":
+		navMsg = messages.NavUpMsg{}
+	case "down", "j":
+		navMsg = messages.NavDownMsg{}
+	case "left", "h":
+		navMsg = messages.NavLeftMsg{}
+	case "right", "l":
+		navMsg = messages.NavRightMsg{}
+	case "enter":
+		navMsg = messages.NavConfirmMsg{}
+	}
+	if navMsg != nil {
+		var navCmd tea.Cmd
+		a, navCmd = a.routeToActiveScreen(navMsg)
+		if navCmd != nil {
+			cmds = append(cmds, navCmd)
+		}
+		return a, tea.Batch(cmds...)
+	}
+
 	var cmd tea.Cmd
 	switch a.activeScreen {
 	case engine.ScreenOverview:
@@ -200,18 +236,19 @@ func (a App) routeKey(msg tea.KeyMsg, cmds []tea.Cmd) (tea.Model, tea.Cmd) {
 	return a, tea.Batch(cmds...)
 }
 
-func (a App) routeToActiveScreen(msg tea.Msg) App {
+func (a App) routeToActiveScreen(msg tea.Msg) (App, tea.Cmd) {
+	var cmd tea.Cmd
 	switch a.activeScreen {
 	case engine.ScreenOverview:
-		a.overview, _ = a.overview.Update(msg)
+		a.overview, cmd = a.overview.Update(msg)
 	case engine.ScreenDashboard:
-		a.dashboard, _ = a.dashboard.Update(msg)
+		a.dashboard, cmd = a.dashboard.Update(msg)
 	case engine.ScreenWorld:
-		a.worldScreen, _ = a.worldScreen.Update(msg)
+		a.worldScreen, cmd = a.worldScreen.Update(msg)
 	case engine.ScreenOfflineReport:
-		a.offlineReport, _ = a.offlineReport.Update(msg)
+		a.offlineReport, cmd = a.offlineReport.Update(msg)
 	}
-	return a
+	return a, cmd
 }
 
 func (a App) View() string {
