@@ -71,6 +71,7 @@ func NewWorldModel(
 		gs:          gs,
 		worldID:     worldID,
 		clickTab:    tabs.NewClickTab(eng, worldID, t, animReg, animKey, width, contentH),
+		shopTab:     tabs.NewShopTab(eng, worldID, t, width, contentH),
 		statusBar:   components.NewStatusBar(t, width),
 		width:       width,
 		height:      height,
@@ -96,7 +97,9 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.statusBar.SetWidth(msg.Width)
-		m.clickTab = m.clickTab.Resize(msg.Width, max(msg.Height-4, 3))
+		contentH := max(msg.Height-4, 3)
+		m.clickTab = m.clickTab.Resize(msg.Width, contentH)
+		m.shopTab = m.shopTab.Resize(msg.Width, contentH)
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -174,14 +177,27 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 
 	var cmds []tea.Cmd
 
-	// Forward nav messages to the modal component when open.
+	// Forward nav messages to the active modal's content tab.
+	// The shop tab uses up/down to navigate its list and confirm to purchase.
+	// Other modals (prestige, achievements) still use the modal component's
+	// Esc-button focus behaviour via the modal component.
 	if m.activeModal != ModalNone {
 		switch msg.(type) {
 		case messages.NavUpMsg, messages.NavDownMsg, messages.NavConfirmMsg:
-			newModal, c := m.modal.Update(msg)
-			m.modal = newModal
-			if c != nil {
-				cmds = append(cmds, c)
+			if m.activeModal == ModalShop {
+				newModel, c := m.shopTab.Update(msg)
+				if st, ok := newModel.(tabs.ShopTabModel); ok {
+					m.shopTab = st
+				}
+				if c != nil {
+					cmds = append(cmds, c)
+				}
+			} else {
+				newModal, c := m.modal.Update(msg)
+				m.modal = newModal
+				if c != nil {
+					cmds = append(cmds, c)
+				}
 			}
 			return m, tea.Batch(cmds...)
 		}
