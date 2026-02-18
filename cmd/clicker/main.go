@@ -86,7 +86,10 @@ func main() {
 	}
 
 	// build offline report.
-	showReport := offlineDuration > 0 && (offlineWorldCoins > 0 || offlineGC > 0)
+	// Show whenever the player has been away for at least 1 minute, regardless
+	// of whether any income was generated (CPS may be 0 early in the game).
+	const minOfflineToReport = 60 * time.Second
+	showReport := offlineDuration >= minOfflineToReport
 	offlineReport := screens.NewOfflineReportModel(
 		activeTheme,
 		sf.LastWorldID,

@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/clicker-org/clicker/internal/world"
 	"github.com/clicker-org/clicker/ui/messages"
 	"github.com/clicker-org/clicker/ui/theme"
 )
@@ -74,9 +75,17 @@ func (m OfflineReportModel) View() string {
 	sb.WriteString("         WELCOME BACK!\n\n")
 	sb.WriteString(fmt.Sprintf("  You were away for: %dh %dm\n\n", hours, mins))
 
-	if m.worldID != "" && m.coinsEarned > 0 {
-		sb.WriteString(fmt.Sprintf("  While offline in [%s]:\n", m.worldID))
-		sb.WriteString(fmt.Sprintf("  + %.0f TC\n\n", m.coinsEarned))
+	if m.worldID != "" {
+		sb.WriteString(fmt.Sprintf("  While offline in %s:\n", m.worldID))
+		if m.coinsEarned > 0 {
+			coinName := m.worldID
+			if w, ok := world.DefaultRegistry.Get(m.worldID); ok {
+				coinName = w.CoinName()
+			}
+			sb.WriteString(fmt.Sprintf("  + %.0f %s\n\n", m.coinsEarned, coinName))
+		} else {
+			sb.WriteString("  No passive income yet. Buy upgrades!\n\n")
+		}
 	}
 	if m.gcEarned > 0 {
 		sb.WriteString(fmt.Sprintf("  + %.2f GC (overview trickle)\n\n", m.gcEarned))
