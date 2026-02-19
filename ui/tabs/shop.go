@@ -210,7 +210,7 @@ func (m ShopTabModel) renderCard(
 		leftW = 10
 	}
 
-	// ── Row 1: Name (left) │ LVL: N (right) ──────────────────────────
+	// ── Row 1: Name (left) │ Own: N (unlocked) or LVL: N (locked) (right) ─
 	nameText := shopTruncStr(b.Name(), leftW-1) // reserve 1 for the leading space
 	var nameStyle lipgloss.Style
 	switch {
@@ -223,24 +223,31 @@ func (m ShopTabModel) renderCard(
 	}
 	nameRender := nameStyle.Render(nameText)
 
-	lvlText := fmt.Sprintf("LVL: %d", b.LevelRequirement())
-	var lvlRender string
+	var row1Right string
 	if locked {
-		lvlRender = lipgloss.NewStyle().Foreground(errC).Render(lvlText)
+		lvlText := fmt.Sprintf("LVL: %d", b.LevelRequirement())
+		row1Right = lipgloss.NewStyle().Foreground(errC).Render(lvlText)
 	} else {
-		lvlRender = lipgloss.NewStyle().Foreground(dim).Render(lvlText)
+		ownText := fmt.Sprintf("Own: %d", count)
+		row1Right = lipgloss.NewStyle().Foreground(dim).Render(ownText)
 	}
 
-	row1 := shopPadVisual(" "+nameRender, leftW) + shopPadVisual(lvlRender, rightW)
+	row1 := shopPadVisual(" "+nameRender, leftW) + shopPadVisual(row1Right, rightW)
 
-	// ── Row 2: Description (left) │ Own: N (right) ────────────────────
+	// ── Row 2: Description (left) │ +X CPS (right) ──────────────────
 	descText := shopTruncStr(b.Description(), leftW-1)
 	descRender := lipgloss.NewStyle().Foreground(dim).Render(descText)
 
-	ownText := fmt.Sprintf("Own: %d", count)
-	ownRender := lipgloss.NewStyle().Foreground(dim).Render(ownText)
+	cpsText := "+" + economy.FormatCPS(b.BaseCPS()) + " CPS"
+	var cpsC lipgloss.Color
+	if locked {
+		cpsC = dim
+	} else {
+		cpsC = lipgloss.Color(m.t.SuccessColor())
+	}
+	cpsRender := lipgloss.NewStyle().Foreground(cpsC).Render(cpsText)
 
-	row2 := shopPadVisual(" "+descRender, leftW) + shopPadVisual(ownRender, rightW)
+	row2 := shopPadVisual(" "+descRender, leftW) + shopPadVisual(cpsRender, rightW)
 
 	// ── Row 3: Cost (left) │ hint/lock (right) ─────────────────────────
 	costText := "Cost: " + economy.FormatCoinsBare(cost) + " " + coinSymbol

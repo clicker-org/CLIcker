@@ -34,3 +34,13 @@ func FormatCoinsBare(amount float64) string {
 func FormatCoins(amount float64, symbol string) string {
 	return symbol + ": " + FormatCoinsBare(amount)
 }
+
+// FormatCPS formats a CPS value with SI suffixes and always two decimal places.
+func FormatCPS(amount float64) string {
+	for _, t := range siTiers {
+		if amount >= t.threshold {
+			return fmt.Sprintf("%.2f%s", amount/t.threshold, t.suffix)
+		}
+	}
+	return fmt.Sprintf("%.2f", amount)
+}
