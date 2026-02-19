@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/term"
@@ -49,34 +48,8 @@ func main() {
 	// reconstruct game state from save.
 	gs := save.GameStateFromSave(sf, worldReg.IDs())
 
-	// compute offline income.
-	var (
-		offlineWorldCoins float64
-		offlineGC         float64
-		offlineDuration   time.Duration
-	)
-	if !sf.SavedAt.IsZero() {
-		elapsed := time.Since(sf.SavedAt).Seconds()
-		if elapsed > 0 {
-			offlineDuration = time.Duration(elapsed * float64(time.Second))
-			if sf.LastScreen == "world" && sf.LastWorldID != "" {
-				if ws, ok := gs.Worlds[sf.LastWorldID]; ok {
-					offlineWorldCoins = offline.CalculateOfflineIncome(
-						ws.CPS, 0.10, elapsed, 8.0,
-					)
-					if offlineWorldCoins > 0 {
-						ws.Coins += offlineWorldCoins
-						ws.TotalCoinsEarned += offlineWorldCoins
-					}
-				}
-			} else {
-				offlineGC = offline.CalculateOverviewOfflineIncome(0.001, elapsed, 10.0)
-				if offlineGC > 0 {
-					gs.Player.GeneralCoins += offlineGC
-				}
-			}
-		}
-	}
+	// compute and apply offline income.
+	offlineResult := offline.Apply(sf.LastScreen, sf.LastWorldID, sf.SavedAt, &gs)
 
 	// create engine.
 	eng := engine.New(gs, worldReg, achievReg)
@@ -86,18 +59,7 @@ func main() {
 	}
 
 	// build offline report.
-	// Show whenever the player has been away for at least 1 minute, regardless
-	// of whether any income was generated (CPS may be 0 early in the game).
-	const minOfflineToReport = 60 * time.Second
-	showReport := offlineDuration >= minOfflineToReport
-	offlineReport := screens.NewOfflineReportModel(
-		activeTheme,
-		sf.LastWorldID,
-		offlineDuration,
-		offlineWorldCoins,
-		offlineGC,
-		showReport,
-	)
+	offlineReport := screens.NewOfflineReportModel(activeTheme, offlineResult)
 
 	// build and run the app.
 	w, h, err := term.GetSize(os.Stdout.Fd())
