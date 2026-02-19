@@ -121,6 +121,9 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 				m.activeModal = ModalShop
 				m.focusedHeader = 1
 				m.modal = components.NewModal(m.t)
+			} else if m.activeModal == ModalShop {
+				m.activeModal = ModalNone
+				m.focusedHeader = 0
 			}
 			return m, nil
 
@@ -129,6 +132,9 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 				m.activeModal = ModalPrestige
 				m.focusedHeader = 2
 				m.modal = components.NewModal(m.t)
+			} else if m.activeModal == ModalPrestige {
+				m.activeModal = ModalNone
+				m.focusedHeader = 0
 			}
 			return m, nil
 
@@ -137,6 +143,9 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 				m.activeModal = ModalAchievements
 				m.focusedHeader = 3
 				m.modal = components.NewModal(m.t)
+			} else if m.activeModal == ModalAchievements {
+				m.activeModal = ModalNone
+				m.focusedHeader = 0
 			}
 			return m, nil
 
