@@ -40,6 +40,8 @@ type App struct {
 	offlineReport screens.OfflineReportModel
 	notification  components.Notification
 	statusBar     components.StatusBar
+
+	quit quitDialog
 }
 
 // NewApp creates the root App model.
@@ -86,6 +88,7 @@ func NewApp(
 		offlineReport: offlineReport,
 		notification:  components.NewNotification(t),
 		statusBar:     components.NewStatusBar(t, width),
+		quit:          newQuitDialog(t),
 	}
 }
 
@@ -111,10 +114,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tea.KeyMsg:
-		if msg.String() == "q" || msg.String() == "Q" {
-			_ = save.Save(a.eng.State, a.eng.Earned, a.saveSettings, a.savePath)
-			return a, tea.Quit
-		}
 		return a.routeKey(msg, cmds)
 
 	case TickMsg:
@@ -178,6 +177,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if notifCmd != nil {
 			cmds = append(cmds, notifCmd)
 		}
+
+	case components.ConfirmMsg:
+		a.quit = a.quit.close()
+		if msg.Confirmed {
+			_ = save.Save(a.eng.State, a.eng.Earned, a.saveSettings, a.savePath)
+			return a, tea.Quit
+		}
 	}
 
 	// Route remaining messages to active screen.
@@ -190,50 +196,52 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, tea.Batch(cmds...)
 }
 
+// routeKey is the single entry point for all key input.
+//
+// It translates the raw key to an abstract message (translateKey), then passes
+// it through the quit-dialog gate.  If the gate consumes the message, routing
+// stops.  Otherwise the (possibly translated) message reaches the active screen.
+//
+// routeKey never inspects dialog state — that is entirely the gate's concern.
 func (a App) routeKey(msg tea.KeyMsg, cmds []tea.Cmd) (tea.Model, tea.Cmd) {
-	// Translate arrow/vim keys and Enter to abstract nav messages.
-	// This is the single translation point — screens handle Nav*Msg instead of
-	// raw key strings so new screens get consistent navigation for free.
-	//
-	// Nav*Msg moves focus (cursor).  NavConfirmMsg activates the focused item.
-	// First-letter shortcuts in each screen bypass this flow and act instantly.
-	var navMsg tea.Msg
-	switch msg.String() {
-	case "up", "k":
-		navMsg = messages.NavUpMsg{}
-	case "down", "j":
-		navMsg = messages.NavDownMsg{}
-	case "left", "h":
-		navMsg = messages.NavLeftMsg{}
-	case "right", "l":
-		navMsg = messages.NavRightMsg{}
-	case "enter":
-		navMsg = messages.NavConfirmMsg{}
+	abstract := translateKey(msg)
+
+	var cmd tea.Cmd
+	var consumed bool
+	a.quit, cmd, consumed = a.quit.handle(abstract)
+	if cmd != nil {
+		cmds = append(cmds, cmd)
 	}
-	if navMsg != nil {
-		var navCmd tea.Cmd
-		a, navCmd = a.routeToActiveScreen(navMsg)
-		if navCmd != nil {
-			cmds = append(cmds, navCmd)
-		}
+	if consumed {
 		return a, tea.Batch(cmds...)
 	}
 
-	var cmd tea.Cmd
-	switch a.activeScreen {
-	case engine.ScreenOverview:
-		a.overview, cmd = a.overview.Update(msg)
-	case engine.ScreenDashboard:
-		a.dashboard, cmd = a.dashboard.Update(msg)
-	case engine.ScreenWorld:
-		a.worldScreen, cmd = a.worldScreen.Update(msg)
-	case engine.ScreenOfflineReport:
-		a.offlineReport, cmd = a.offlineReport.Update(msg)
-	}
+	a, cmd = a.routeToActiveScreen(abstract)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 	return a, tea.Batch(cmds...)
+}
+
+// translateKey converts a raw KeyMsg to the abstract message it represents.
+// Keys with no abstract equivalent are returned as-is so active screens can
+// handle them as first-letter shortcuts without any extra switch cases here.
+func translateKey(msg tea.KeyMsg) tea.Msg {
+	switch msg.String() {
+	case "q", "Q":
+		return quitRequestedMsg{}
+	case "up", "k":
+		return messages.NavUpMsg{}
+	case "down", "j":
+		return messages.NavDownMsg{}
+	case "left", "h":
+		return messages.NavLeftMsg{}
+	case "right", "l":
+		return messages.NavRightMsg{}
+	case "enter":
+		return messages.NavConfirmMsg{}
+	}
+	return msg
 }
 
 func (a App) routeToActiveScreen(msg tea.Msg) (App, tea.Cmd) {
@@ -279,11 +287,13 @@ func (a App) View() string {
 		content = notif + "\n" + content
 	}
 
-	// Fill the entire terminal with the game background so nothing bleeds through.
-	return lipgloss.NewStyle().
+	// Pre-render the full-screen background before any modal overlay.
+	fullContent := lipgloss.NewStyle().
 		Width(a.width).
 		Height(a.height).
 		Background(bg).
 		Foreground(lipgloss.Color(a.t.PrimaryText())).
 		Render(content)
+
+	return a.quit.view(fullContent, a.width, a.height)
 }

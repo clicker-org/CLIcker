@@ -53,6 +53,14 @@ func (m Modal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 // show the live background content.
 func (m Modal) View(title, content, bgContent string, width, height int) string {
 	box := m.renderBox(title, content, width, height)
+	return overlayOnBackground(box, bgContent, m.t.Background(), width, height)
+}
+
+// overlayOnBackground centers box (a multi-line pre-rendered string) over
+// bgContent (a pre-rendered width×height terminal string) and returns the
+// composite result. bgColor is used to fill the right margin on each row
+// that the box occupies.
+func overlayOnBackground(box, bgContent, bgColor string, width, height int) string {
 	boxLines := strings.Split(box, "\n")
 	boxH := len(boxLines)
 	boxW := lipgloss.Width(boxLines[0])
@@ -92,7 +100,7 @@ func (m Modal) View(title, content, bgContent string, width, height int) string 
 		var rightPart string
 		if rightWidth > 0 {
 			rightPart = lipgloss.NewStyle().
-				Background(lipgloss.Color(m.t.Background())).
+				Background(lipgloss.Color(bgColor)).
 				Render(strings.Repeat(" ", rightWidth))
 		}
 
