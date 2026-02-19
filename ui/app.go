@@ -59,21 +59,7 @@ func NewApp(
 		initialScreen = engine.ScreenOfflineReport
 	}
 
-	overview := screens.NewOverviewModel(t, &eng.State, eng.WorldReg, width, height)
-	dashboard := screens.NewDashboardModel(t, &eng.State, width, height)
-
-	var worldScreen screens.WorldModel
-	worldIDs := eng.WorldReg.IDs()
-	if len(worldIDs) > 0 {
-		wID := worldIDs[0]
-		animKey := "stars"
-		if w, ok := eng.WorldReg.Get(wID); ok {
-			animKey = w.AmbientAnimation()
-		}
-		worldScreen = screens.NewWorldModel(t, eng, &eng.State, wID, animReg, animKey, width, height)
-	}
-
-	return App{
+	app := App{
 		eng:           eng,
 		activeScreen:  initialScreen,
 		width:         width,
@@ -82,14 +68,20 @@ func NewApp(
 		animReg:       animReg,
 		savePath:      savePath,
 		saveSettings:  settings,
-		overview:      overview,
-		dashboard:     dashboard,
-		worldScreen:   worldScreen,
+		overview:      screens.NewOverviewModel(t, &eng.State, eng.WorldReg, width, height),
+		dashboard:     screens.NewDashboardModel(t, &eng.State, width, height),
 		offlineReport: offlineReport,
 		notification:  components.NewNotification(t),
 		statusBar:     components.NewStatusBar(t, width),
 		quit:          newQuitDialog(t),
 	}
+
+	worldIDs := eng.WorldReg.IDs()
+	if len(worldIDs) > 0 {
+		app.worldScreen = app.buildWorldScreen(worldIDs[0])
+	}
+
+	return app
 }
 
 func (a App) Init() tea.Cmd {
@@ -101,8 +93,6 @@ func (a App) Init() tea.Cmd {
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
@@ -111,72 +101,44 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.overview, _ = a.overview.Update(msg)
 		a.dashboard, _ = a.dashboard.Update(msg)
 		a.worldScreen, _ = a.worldScreen.Update(msg)
+		a.offlineReport, _ = a.offlineReport.Update(msg)
 		return a, nil
 
 	case tea.KeyMsg:
-		return a.routeKey(msg, cmds)
+		return a.routeKey(msg)
 
 	case TickMsg:
-		events := a.eng.Tick(float64(engine.TickIntervalMs) / 1000.0)
-		cmds = append(cmds, tickCmd())
-		for _, ev := range events {
-			ev := ev
-			switch ev.Type {
-			case engine.EventAchievementUnlocked:
-				cmds = append(cmds, func() tea.Msg {
-					return messages.AchievementUnlockedMsg{ID: ev.AchievementID}
-				})
-			case engine.EventLevelUp:
-				cmds = append(cmds, func() tea.Msg {
-					return messages.LevelUpMsg{NewLevel: ev.NewLevel}
-				})
-			case engine.EventAutoSave:
-				_ = save.Save(a.eng.State, a.eng.Earned, a.saveSettings, a.savePath)
-			}
-		}
-		// Pass tick to active screen for animation updates.
-		var animCmd tea.Cmd
-		a, animCmd = a.routeToActiveScreen(msg)
-		if animCmd != nil {
-			cmds = append(cmds, animCmd)
-		}
-		return a, tea.Batch(cmds...)
+		return a.handleTick(msg)
 
 	case messages.AchievementUnlockedMsg:
-		cmd := a.notification.Show("Achievement: "+msg.ID, 3*time.Second)
-		cmds = append(cmds, cmd)
+		return a, a.notification.Show("Achievement: "+msg.ID, 3*time.Second)
 
 	case messages.NavigateToOverviewMsg:
 		a.activeScreen = engine.ScreenOverview
 		a.eng.State.LastScreen = "overview"
+		return a, nil
 
 	case messages.NavigateToDashboardMsg:
 		a.activeScreen = engine.ScreenDashboard
+		return a, nil
 
 	case messages.NavigateToWorldMsg:
 		a.eng.State.ActiveWorldID = msg.WorldID
 		a.eng.State.LastWorldID = msg.WorldID
 		a.eng.State.LastScreen = "world"
-		animKey := "stars"
-		if w, ok := a.eng.WorldReg.Get(msg.WorldID); ok {
-			animKey = w.AmbientAnimation()
-		}
-		a.worldScreen = screens.NewWorldModel(
-			a.t, a.eng, &a.eng.State, msg.WorldID, a.animReg, animKey, a.width, a.height,
-		)
+		a.worldScreen = a.buildWorldScreen(msg.WorldID)
 		a.activeScreen = engine.ScreenWorld
-		cmds = append(cmds, a.worldScreen.Init())
+		return a, a.worldScreen.Init()
 
 	case messages.OfflineReportDismissedMsg:
 		a.offlineReport, _ = a.offlineReport.Update(msg)
 		a.activeScreen = engine.ScreenOverview
+		return a, nil
 
 	case components.NotificationDismissMsg:
-		var notifCmd tea.Cmd
-		a.notification, notifCmd = a.notification.Update(msg)
-		if notifCmd != nil {
-			cmds = append(cmds, notifCmd)
-		}
+		var cmd tea.Cmd
+		a.notification, cmd = a.notification.Update(msg)
+		return a, cmd
 
 	case components.ConfirmMsg:
 		a.quit = a.quit.close()
@@ -184,16 +146,54 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			_ = save.Save(a.eng.State, a.eng.Earned, a.saveSettings, a.savePath)
 			return a, tea.Quit
 		}
+		return a, nil
 	}
 
-	// Route remaining messages to active screen.
-	var screenCmd tea.Cmd
-	a, screenCmd = a.routeToActiveScreen(msg)
-	if screenCmd != nil {
-		cmds = append(cmds, screenCmd)
+	// Forward unhandled messages to the active screen.
+	var cmd tea.Cmd
+	a, cmd = a.routeToActiveScreen(msg)
+	return a, cmd
+}
+
+// handleTick advances the engine one tick, processes engine events, and
+// forwards the tick to the active screen for animation updates.
+func (a App) handleTick(msg TickMsg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	events := a.eng.Tick(float64(engine.TickIntervalMs) / 1000.0)
+	cmds = append(cmds, tickCmd())
+
+	for _, ev := range events {
+		switch ev.Type {
+		case engine.EventAchievementUnlocked:
+			cmds = append(cmds, func() tea.Msg {
+				return messages.AchievementUnlockedMsg{ID: ev.AchievementID}
+			})
+		case engine.EventLevelUp:
+			cmds = append(cmds, func() tea.Msg {
+				return messages.LevelUpMsg{NewLevel: ev.NewLevel}
+			})
+		case engine.EventAutoSave:
+			_ = save.Save(a.eng.State, a.eng.Earned, a.saveSettings, a.savePath)
+		}
+	}
+
+	var animCmd tea.Cmd
+	a, animCmd = a.routeToActiveScreen(msg)
+	if animCmd != nil {
+		cmds = append(cmds, animCmd)
 	}
 
 	return a, tea.Batch(cmds...)
+}
+
+// buildWorldScreen constructs a WorldModel for the given world ID.
+func (a App) buildWorldScreen(worldID string) screens.WorldModel {
+	animKey := "stars"
+	if w, ok := a.eng.WorldReg.Get(worldID); ok {
+		animKey = w.AmbientAnimation()
+	}
+	return screens.NewWorldModel(a.t, a.eng, &a.eng.State, worldID, a.animReg, animKey, a.width, a.height)
 }
 
 // routeKey is the single entry point for all key input.
@@ -203,9 +203,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // stops.  Otherwise the (possibly translated) message reaches the active screen.
 //
 // routeKey never inspects dialog state — that is entirely the gate's concern.
-func (a App) routeKey(msg tea.KeyMsg, cmds []tea.Cmd) (tea.Model, tea.Cmd) {
+func (a App) routeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	abstract := translateKey(msg)
 
+	var cmds []tea.Cmd
 	var cmd tea.Cmd
 	var consumed bool
 	a.quit, cmd, consumed = a.quit.handle(abstract)
