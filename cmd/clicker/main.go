@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"path/filepath"
+	"runtime/debug"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/term"
@@ -20,11 +23,32 @@ import (
 )
 
 func main() {
+	// set up file logging. All log.Printf calls (including those in internal
+	// packages) will write here. The file is created on first run and appended
+	// to on subsequent runs, so crash context is preserved across sessions.
+	logPath := save.LogPath()
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err == nil {
+		if lf, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600); err == nil {
+			defer lf.Close()
+			log.SetOutput(lf)
+			log.SetFlags(log.LstdFlags | log.Lshortfile)
+		}
+	}
+
+	// catch panics so they are written to the log file before the process exits.
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("panic: %v\n%s", r, debug.Stack())
+			fmt.Fprintf(os.Stderr, "clicker crashed — see %s for details\n", logPath)
+			os.Exit(2)
+		}
+	}()
+
 	// load save file.
 	savePath := save.SavePath()
 	sf, err := save.Load(savePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not load save: %v\n", err)
+		log.Printf("warning: could not load save: %v", err)
 		sf = save.DefaultSaveFile()
 	}
 
@@ -79,7 +103,8 @@ func main() {
 
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		log.Printf("error: %v", err)
+		fmt.Fprintf(os.Stderr, "clicker error — see %s for details\n", logPath)
 		os.Exit(1)
 	}
 }

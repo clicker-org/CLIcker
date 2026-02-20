@@ -12,18 +12,28 @@ import (
 	"github.com/clicker-org/clicker/internal/world"
 )
 
-// SavePath returns the OS-appropriate path for the save file.
-// Respects XDG_CONFIG_HOME on Linux; falls back to ~/.config/clicker/save.json.
-func SavePath() string {
+// configDir returns the OS-appropriate config directory for clicker.
+// Respects XDG_CONFIG_HOME on Linux; falls back to ~/.config/clicker.
+func configDir() string {
 	configHome := os.Getenv("XDG_CONFIG_HOME")
 	if configHome == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "save.json"
+			return "."
 		}
 		configHome = filepath.Join(home, ".config")
 	}
-	return filepath.Join(configHome, "clicker", "save.json")
+	return filepath.Join(configHome, "clicker")
+}
+
+// SavePath returns the OS-appropriate path for the save file.
+func SavePath() string {
+	return filepath.Join(configDir(), "save.json")
+}
+
+// LogPath returns the OS-appropriate path for the log file.
+func LogPath() string {
+	return filepath.Join(configDir(), "clicker.log")
 }
 
 // Save writes the current game state to path as a signed envelope.
