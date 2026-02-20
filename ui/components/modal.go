@@ -10,29 +10,34 @@ import (
 	"github.com/clicker-org/clicker/ui/theme"
 )
 
-// ModalCloseMsg is emitted by Modal when it requests to be closed
-// (user pressed Enter on the focused [Esc] button).
+// ModalCloseMsg is emitted by BaseModal when the user confirms the [Esc] button.
 type ModalCloseMsg struct{}
 
-// Modal is a centered overlay box with a white border and a focusable [Esc]
-// button embedded in the top-left corner of the border.
+// BaseModal is the shared foundation for all modal overlays.
+// It renders a bordered box with a focusable [Esc] button in the top-left
+// corner and composites it centered over a pre-rendered background.
+// Callers supply the box dimensions explicitly; the concrete modal types
+// (TabModal, ConfirmModal) choose appropriate sizes for their use case.
 //
 // Navigation:
-//   - NavUpMsg    → move focus to the [Esc] button
-//   - NavDownMsg  → move focus away from the [Esc] button
-//   - NavConfirmMsg (when Esc focused) → emit ModalCloseMsg
-type Modal struct {
+//   - NavUpMsg                       → focus the [Esc] button
+//   - NavDownMsg                     → unfocus the [Esc] button
+//   - NavConfirmMsg (when [Esc] focused) → emit ModalCloseMsg
+type BaseModal struct {
 	escFocused bool
 	t          theme.Theme
 }
 
-// NewModal returns a fresh Modal with no focused state.
-func NewModal(t theme.Theme) Modal {
-	return Modal{t: t}
+// NewBaseModal returns a fresh BaseModal with no focused state.
+func NewBaseModal(t theme.Theme) BaseModal {
+	return BaseModal{t: t}
 }
 
+// EscFocused reports whether the [Esc] border button currently has focus.
+func (m BaseModal) EscFocused() bool { return m.escFocused }
+
 // Update handles the navigation messages that control the [Esc] button focus.
-func (m Modal) Update(msg tea.Msg) (Modal, tea.Cmd) {
+func (m BaseModal) Update(msg tea.Msg) (BaseModal, tea.Cmd) {
 	switch msg.(type) {
 	case messages.NavUpMsg:
 		m.escFocused = true
@@ -47,26 +52,22 @@ func (m Modal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the modal overlaid on top of bgContent.
-// bgContent must be a pre-rendered string of exactly width×height cells.
-// The modal is centered; rows above/below and columns to the left of the modal
-// show the live background content.
-func (m Modal) View(title, content, bgContent string, width, height int) string {
-	box := m.renderBox(title, content, width, height)
-	return overlayOnBackground(box, bgContent, m.t.Background(), width, height)
+// View renders a box of boxWidth×boxHeight centered over bgContent.
+// bgContent must be a pre-rendered string of exactly outerWidth×outerHeight cells.
+func (m BaseModal) View(title, content, bgContent string, outerWidth, outerHeight, boxWidth, boxHeight int) string {
+	box := m.renderBox(title, content, boxWidth, boxHeight)
+	return overlayOnBackground(box, bgContent, m.t.Background(), outerWidth, outerHeight)
 }
 
 // overlayOnBackground centers box (a multi-line pre-rendered string) over
 // bgContent (a pre-rendered width×height terminal string) and returns the
-// composite result. bgColor is used to fill the right margin on each row
-// that the box occupies.
+// composite result. bgColor is used to fill any gap in the right margin.
 func overlayOnBackground(box, bgContent, bgColor string, width, height int) string {
 	boxLines := strings.Split(box, "\n")
 	boxH := len(boxLines)
 	boxW := lipgloss.Width(boxLines[0])
 
 	bgLines := strings.Split(bgContent, "\n")
-	// Ensure bgLines has exactly height rows.
 	for len(bgLines) < height {
 		bgLines = append(bgLines, strings.Repeat(" ", width))
 	}
@@ -79,29 +80,25 @@ func overlayOnBackground(box, bgContent, bgColor string, width, height int) stri
 	for i, bgLine := range bgLines {
 		oi := i - startY
 		if oi < 0 || oi >= boxH {
-			// Above or below the modal: show the full background row.
 			result[i] = bgLine
 			continue
 		}
-		// This row intersects the modal.
 		modalLine := boxLines[oi]
 
-		// Left portion: first startX visual columns from the background.
 		leftPart := ansi.Truncate(bgLine, startX, "")
 		leftVisual := lipgloss.Width(leftPart)
 		if leftVisual < startX {
 			leftPart += strings.Repeat(" ", startX-leftVisual)
 		}
 
-		// Right portion: solid background fill.
-		// (Extracting the right side of an ANSI string requires a full ANSI parser;
-		// background-color fill is the practical alternative.)
-		rightWidth := max(width-startX-boxW, 0)
-		var rightPart string
-		if rightWidth > 0 {
-			rightPart = lipgloss.NewStyle().
+		rightStart := startX + boxW
+		rightPart := ansi.Cut(bgLine, rightStart, width)
+		rightVisual := lipgloss.Width(rightPart)
+		rightWidth := max(width-rightStart, 0)
+		if rightVisual < rightWidth {
+			rightPart += lipgloss.NewStyle().
 				Background(lipgloss.Color(bgColor)).
-				Render(strings.Repeat(" ", rightWidth))
+				Render(strings.Repeat(" ", rightWidth-rightVisual))
 		}
 
 		result[i] = leftPart + modalLine + rightPart
@@ -110,19 +107,15 @@ func overlayOnBackground(box, bgContent, bgColor string, width, height int) stri
 	return strings.Join(result, "\n")
 }
 
-// renderBox builds the raw modal box string (no placement/padding).
-func (m Modal) renderBox(title, content string, width, height int) string {
+// renderBox builds the raw bordered box string at the given dimensions.
+func (m BaseModal) renderBox(title, content string, boxWidth, boxHeight int) string {
 	const borderColor = "#ffffff"
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 
-	modalWidth := max(width*3/4, 40)
-	modalWidth = min(modalWidth, width-4)
-	modalHeight := max(height-4, 6)
+	innerWidth := boxWidth - 2
+	innerHeight := boxHeight - 2
 
-	innerWidth := modalWidth - 2
-	innerHeight := modalHeight - 2
-
-	// [Esc] button: reversed (dark text on white bg) when focused.
+	// [Esc] button: reversed when focused.
 	var escLabel string
 	if m.escFocused {
 		escLabel = borderStyle.Render("[") +
@@ -135,21 +128,18 @@ func (m Modal) renderBox(title, content string, width, height int) string {
 	} else {
 		escLabel = borderStyle.Render("[Esc]")
 	}
-	escVisualLen := lipgloss.Width(escLabel) // always 5, ANSI-stripped
+	escW := lipgloss.Width(escLabel) // always 5
 
-	// Top border: ┌[Esc]──────── TITLE ─┐
 	titleStr := " " + title + " "
-	dashCount := max(innerWidth-escVisualLen-len(titleStr), 0)
+	dashCount := max(innerWidth-escW-lipgloss.Width(titleStr), 0)
 	topBorder := borderStyle.Render("┌") + escLabel +
 		borderStyle.Render(strings.Repeat("─", dashCount)+titleStr+"┐")
 
-	// Bottom border: └──────────────────┘
 	bottomBorder := borderStyle.Render("└" + strings.Repeat("─", innerWidth) + "┘")
 
-	// Interior rows padded to innerWidth with side borders.
 	contentLines := strings.Split(strings.TrimRight(content, "\n"), "\n")
 	side := borderStyle.Render("│")
-	rows := make([]string, 0, modalHeight)
+	rows := make([]string, 0, boxHeight)
 	rows = append(rows, topBorder)
 	for i := range innerHeight {
 		var line string

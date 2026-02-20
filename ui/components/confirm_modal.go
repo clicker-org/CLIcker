@@ -12,87 +12,86 @@ import (
 // ConfirmMsg is sent when the user selects an option in the confirm dialog.
 type ConfirmMsg struct{ Confirmed bool }
 
-// ConfirmModal is a centered two-button dialog overlay.
+// ConfirmModal is a compact two-button dialog overlay built on BaseModal.
+// It sizes itself to roughly half the outer width with a fixed 7-row height,
+// keeping it visually distinct from the larger TabModal.
 //
-// Navigation matches the rest of the UI:
+// Navigation:
 //
-//	NavLeftMsg    → focus the Cancel button
-//	NavRightMsg   → focus the Confirm button
-//	NavConfirmMsg → emit ConfirmMsg with the current selection
-//	Esc           → handled by the caller as a cancel shortcut
+//	NavUpMsg      → focus the [Esc] button (cancels on Enter)
+//	NavDownMsg    → unfocus the [Esc] button
+//	NavLeftMsg    → focus the Confirm button (when [Esc] not focused)
+//	NavRightMsg   → focus the Cancel button (when [Esc] not focused)
+//	NavConfirmMsg → emit ConfirmMsg{Confirmed: current selection}
 type ConfirmModal struct {
+	inner          BaseModal
 	t              theme.Theme
 	label          string // inner text of the confirm button, e.g. "Quit", "Prestige"
 	confirmFocused bool   // true = Confirm focused (default), false = Cancel focused
 }
 
 // NewConfirmModal returns a ConfirmModal with Confirm pre-focused.
-// label is the inner text shown on the confirm button (e.g. "Quit", "Confirm").
+// label is the inner text shown on the confirm button (e.g. "Quit", "Prestige").
 func NewConfirmModal(t theme.Theme, label string) ConfirmModal {
-	return ConfirmModal{t: t, label: label, confirmFocused: true}
+	return ConfirmModal{inner: NewBaseModal(t), t: t, label: label, confirmFocused: true}
 }
 
-// Update handles navigation between buttons and emits ConfirmMsg on selection.
+// ConfirmFocused reports whether the confirm button (not cancel, not [Esc])
+// will be triggered by the next NavConfirmMsg.
+func (m ConfirmModal) ConfirmFocused() bool { return m.confirmFocused && !m.inner.EscFocused() }
+
+// Update handles navigation and emits ConfirmMsg on selection.
 func (m ConfirmModal) Update(msg tea.Msg) (ConfirmModal, tea.Cmd) {
 	switch msg.(type) {
+	case messages.NavUpMsg, messages.NavDownMsg:
+		var cmd tea.Cmd
+		m.inner, cmd = m.inner.Update(msg)
+		return m, cmd
+
 	case messages.NavLeftMsg:
-		m.confirmFocused = true
+		if !m.inner.EscFocused() {
+			m.confirmFocused = true
+		}
+
 	case messages.NavRightMsg:
-		m.confirmFocused = false
+		if !m.inner.EscFocused() {
+			m.confirmFocused = false
+		}
+
 	case messages.NavConfirmMsg:
+		if m.inner.EscFocused() {
+			var cmd tea.Cmd
+			m.inner, cmd = m.inner.Update(msg)
+			return m, cmd
+		}
 		confirmed := m.confirmFocused
 		return m, func() tea.Msg { return ConfirmMsg{Confirmed: confirmed} }
+
+	case ModalCloseMsg:
+		return m, func() tea.Msg { return ConfirmMsg{Confirmed: false} }
 	}
 	return m, nil
 }
 
 // View renders the confirm dialog centered over bgContent.
-// bgContent must be a pre-rendered string of exactly width×height cells.
-func (m ConfirmModal) View(title, question, bgContent string, width, height int) string {
-	box := m.renderBox(title, question, width)
-	return overlayOnBackground(box, bgContent, m.t.Background(), width, height)
+// bgContent must be a pre-rendered string of exactly outerWidth×outerHeight cells.
+func (m ConfirmModal) View(title, question, bgContent string, outerWidth, outerHeight int) string {
+	boxWidth := min(max(outerWidth/2, 44), outerWidth-4)
+	const boxHeight = 7
+	innerWidth := boxWidth - 2
+	content := m.renderContent(question, innerWidth)
+	return m.inner.View(title, content, bgContent, outerWidth, outerHeight, boxWidth, boxHeight)
 }
 
-// renderBox builds the raw confirm dialog box string.
-//
-// Layout (7 rows):
-//
-//	┌───────── Title ────────┐
-//	│                        │
-//	│         question       │
-//	│                        │
-//	│  [Confirm] [ Cancel ]  │
-//	│                        │
-//	└────────────────────────┘
-func (m ConfirmModal) renderBox(title, question string, width int) string {
-	const borderColor = "#ffffff"
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
-
-	modalWidth := max(width/2, 44)
-	modalWidth = min(modalWidth, width-4)
-	innerWidth := modalWidth - 2
-
-	// Top border with centered title.
-	titleStr := " " + title + " "
-	titleW := lipgloss.Width(titleStr)
-	dashes := max(innerWidth-titleW, 0)
-	leftDash := dashes / 2
-	rightDash := dashes - leftDash
-	topBorder := borderStyle.Render(
-		"┌" + strings.Repeat("─", leftDash) + titleStr + strings.Repeat("─", rightDash) + "┐",
-	)
-	bottomBorder := borderStyle.Render("└" + strings.Repeat("─", innerWidth) + "┘")
-
-	side := borderStyle.Render("│")
-
-	// Question line, centered.
+// renderContent builds the question + button rows for the interior of the box.
+// innerWidth is the usable width between the side borders.
+func (m ConfirmModal) renderContent(question string, innerWidth int) string {
 	questionW := lipgloss.Width(question)
 	qPad := max(innerWidth-questionW, 0)
 	qLeft := qPad / 2
 	qRight := qPad - qLeft
-	questionLine := side + strings.Repeat(" ", qLeft) + question + strings.Repeat(" ", qRight) + side
+	questionLine := strings.Repeat(" ", qLeft) + question + strings.Repeat(" ", qRight)
 
-	// Button labels.
 	const cancelLabel = "[ Cancel ]"
 	confirmLabel := "[ " + m.label + " ]"
 	const buttonGap = "   "
@@ -103,32 +102,32 @@ func (m ConfirmModal) renderBox(title, question string, width int) string {
 		Bold(true).
 		Underline(true)
 
-	var cancelStr, confirmStr string
-	if m.confirmFocused {
-		cancelStr = dimStyle.Render(cancelLabel)
-		confirmStr = activeStyle.Render(confirmLabel)
-	} else {
-		cancelStr = activeStyle.Render(cancelLabel)
+	var confirmStr, cancelStr string
+	switch {
+	case m.inner.EscFocused():
 		confirmStr = dimStyle.Render(confirmLabel)
+		cancelStr = dimStyle.Render(cancelLabel)
+	case m.confirmFocused:
+		confirmStr = activeStyle.Render(confirmLabel)
+		cancelStr = dimStyle.Render(cancelLabel)
+	default:
+		confirmStr = dimStyle.Render(confirmLabel)
+		cancelStr = activeStyle.Render(cancelLabel)
 	}
 
 	totalButtonW := lipgloss.Width(confirmLabel) + lipgloss.Width(buttonGap) + lipgloss.Width(cancelLabel)
 	bPad := max(innerWidth-totalButtonW, 0)
 	bLeft := bPad / 2
 	bRight := bPad - bLeft
-	buttonLine := side +
-		strings.Repeat(" ", bLeft) + confirmStr + buttonGap + cancelStr + strings.Repeat(" ", bRight) +
-		side
+	buttonLine := strings.Repeat(" ", bLeft) + confirmStr + buttonGap + cancelStr + strings.Repeat(" ", bRight)
 
-	blank := side + strings.Repeat(" ", innerWidth) + side
+	blank := strings.Repeat(" ", innerWidth)
 
 	return strings.Join([]string{
-		topBorder,
 		blank,
 		questionLine,
 		blank,
 		buttonLine,
 		blank,
-		bottomBorder,
 	}, "\n")
 }

@@ -23,6 +23,14 @@ type LevelUpMsg struct{ NewLevel int }
 // GameTickMsg carries engine events from a tick.
 type GameTickMsg struct{ Events []engine.EngineEvent }
 
+// PrestigeConfirmRequestedMsg is emitted by the prestige tab when the user
+// triggers a prestige action that requires confirmation.
+type PrestigeConfirmRequestedMsg struct{}
+
+// ExchangeBoostConfirmRequestedMsg is emitted by the prestige tab when the
+// user triggers an exchange boost that requires confirmation.
+type ExchangeBoostConfirmRequestedMsg struct{}
+
 // Directional navigation messages — emitted by App for arrow/vim keys.
 // Screens respond to these instead of raw key strings so that new screens get
 // keyboard navigation without repeating key-string switch cases.

@@ -49,7 +49,9 @@ func (d quitDialog) handle(msg tea.Msg) (quitDialog, tea.Cmd, bool) {
 		// All raw keys are consumed while the dialog is open.
 		return d, nil, true
 
-	case messages.NavLeftMsg, messages.NavRightMsg, messages.NavConfirmMsg:
+	case messages.NavLeftMsg, messages.NavRightMsg,
+		messages.NavUpMsg, messages.NavDownMsg,
+		messages.NavConfirmMsg:
 		if !d.open {
 			return d, nil, false
 		}
@@ -58,7 +60,7 @@ func (d quitDialog) handle(msg tea.Msg) (quitDialog, tea.Cmd, bool) {
 		return d, cmd, true
 
 	default:
-		// NavUpMsg, NavDownMsg, and any future message type: consumed only when open.
+		// Any other message type is consumed only when the dialog is open.
 		return d, nil, d.open
 	}
 }

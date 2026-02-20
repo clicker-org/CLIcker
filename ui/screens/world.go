@@ -1,10 +1,12 @@
 package screens
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/clicker-org/clicker/internal/economy"
 	"github.com/clicker-org/clicker/internal/engine"
 	"github.com/clicker-org/clicker/internal/gamestate"
 	"github.com/clicker-org/clicker/ui/components"
@@ -27,6 +29,15 @@ const (
 // headerCount is the number of items in the top header bar.
 const headerCount = 4
 
+// worldConfirmType identifies which action a confirm dialog is asking about.
+type worldConfirmType int
+
+const (
+	worldConfirmNone     worldConfirmType = iota
+	worldConfirmPrestige                  // confirm before prestige reset
+	worldConfirmExchange                  // confirm before exchange boost
+)
+
 // WorldModel hosts the world screen. The click view is always the background;
 // Shop, Prestige, and Achievements open as modal overlays on top.
 type WorldModel struct {
@@ -44,7 +55,13 @@ type WorldModel struct {
 	// activeModal is the modal currently displayed; ModalNone means no overlay.
 	focusedHeader int
 	activeModal   ModalType
-	modal         components.Modal
+	modal         components.TabModal
+
+	// confirmModal is the confirm dialog that overlays the prestige modal.
+	// It is only shown when confirmOpen is true.
+	confirmType  worldConfirmType
+	confirmModal components.ConfirmModal
+	confirmOpen  bool
 
 	statusBar    components.StatusBar
 	width        int
@@ -92,7 +109,75 @@ func (m WorldModel) Init() tea.Cmd {
 	return m.clickTab.Init()
 }
 
+// handleConfirmInput is the gate that intercepts all input when a confirm
+// dialog is open. Returns (handled, newModel, cmd). Non-input messages (ticks,
+// window size, etc.) are not consumed so they continue to drive animations.
+func (m WorldModel) handleConfirmInput(msg tea.Msg) (bool, WorldModel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "esc" {
+			m.confirmOpen = false
+		}
+		return true, m, nil
+
+	case messages.NavLeftMsg, messages.NavRightMsg,
+		messages.NavUpMsg, messages.NavDownMsg:
+		m.confirmModal, _ = m.confirmModal.Update(msg)
+		return true, m, nil
+
+	case messages.NavConfirmMsg:
+		if m.confirmModal.ConfirmFocused() {
+			switch m.confirmType {
+			case worldConfirmPrestige:
+				m.eng.ExecutePrestige(m.worldID)
+			case worldConfirmExchange:
+				m.eng.ExecuteExchangeBoost(m.worldID)
+			}
+		}
+		m.confirmOpen = false
+		return true, m, nil
+	}
+	return false, m, nil
+}
+
+// confirmContent returns the title and question string for the active confirm.
+func (m WorldModel) confirmContent() (title, question string) {
+	ws := m.eng.State.Worlds[m.worldID]
+	switch m.confirmType {
+	case worldConfirmPrestige:
+		preview := economy.CalculatePrestigeReward(ws.TotalCoinsEarned, ws.PrestigeCount, ws.PrestigeMultiplier)
+		return "CONFIRM PRESTIGE", fmt.Sprintf(
+			"Reset world. Earn: +%s GC  ×%.2f  +%d XP",
+			economy.FormatCoinsBare(preview.GeneralCoinsEarned),
+			preview.PrestigeMultiplier,
+			preview.XPGrant,
+		)
+	case worldConfirmExchange:
+		boost := m.eng.ExchangeBoostPreview(m.worldID)
+		coinSymbol := m.worldID
+		if w, ok := m.eng.WorldReg.Get(m.worldID); ok {
+			coinSymbol = w.CoinSymbol()
+		}
+		return "CONFIRM EXCHANGE BOOST", fmt.Sprintf(
+			"Sacrifice %s %s → earn %s GC",
+			economy.FormatCoinsBare(boost.WorldCoinsCost),
+			coinSymbol,
+			economy.FormatCoinsBare(boost.GeneralCoinsEarned),
+		)
+	}
+	return "", ""
+}
+
 func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
+	// Confirm dialog acts as a gate: it captures all input when open.
+	// Non-input messages (ticks, window resize) pass through unchanged so
+	// background animations keep running.
+	if m.confirmOpen {
+		if handled, newM, cmd := m.handleConfirmInput(msg); handled {
+			return newM, cmd
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -106,6 +191,7 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":
+			// Esc closes layers from the top down.
 			if m.activeModal != ModalNone {
 				m.activeModal = ModalNone
 				return m, nil
@@ -122,7 +208,7 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 			if m.activeModal == ModalNone {
 				m.activeModal = ModalShop
 				m.focusedHeader = 1
-				m.modal = components.NewModal(m.t)
+				m.modal = components.NewTabModal(m.t)
 			} else if m.activeModal == ModalShop {
 				m.activeModal = ModalNone
 				m.focusedHeader = 0
@@ -134,10 +220,10 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 				// Open the prestige modal.
 				m.activeModal = ModalPrestige
 				m.focusedHeader = 2
-				m.modal = components.NewModal(m.t)
+				m.modal = components.NewTabModal(m.t)
 				return m, nil
 			} else if m.activeModal == ModalPrestige {
-				// Forward P to the prestige tab (triggers prestige confirm).
+				// Forward P to the prestige tab (may emit PrestigeConfirmRequestedMsg).
 				newModel, c := m.prestigeTab.Update(msg)
 				if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
 					m.prestigeTab = pt
@@ -148,7 +234,7 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 
 		case "e", "E":
 			if m.activeModal == ModalPrestige {
-				// Forward E to the prestige tab (triggers exchange boost confirm).
+				// Forward E to the prestige tab (may emit ExchangeBoostConfirmRequestedMsg).
 				newModel, c := m.prestigeTab.Update(msg)
 				if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
 					m.prestigeTab = pt
@@ -161,7 +247,7 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 			if m.activeModal == ModalNone {
 				m.activeModal = ModalAchievements
 				m.focusedHeader = 3
-				m.modal = components.NewModal(m.t)
+				m.modal = components.NewTabModal(m.t)
 			} else if m.activeModal == ModalAchievements {
 				m.activeModal = ModalNone
 				m.focusedHeader = 0
@@ -189,34 +275,29 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 		m.activeModal = ModalNone
 		return m, nil
 
+	// Prestige tab emits these when P/E are pressed inside the prestige modal.
+	case messages.PrestigeConfirmRequestedMsg:
+		m.confirmType = worldConfirmPrestige
+		m.confirmModal = components.NewConfirmModal(m.t, "Prestige")
+		m.confirmOpen = true
+		return m, nil
+
+	case messages.ExchangeBoostConfirmRequestedMsg:
+		m.confirmType = worldConfirmExchange
+		m.confirmModal = components.NewConfirmModal(m.t, "Exchange")
+		m.confirmOpen = true
+		return m, nil
+
 	// Arrow-key cursor: moves the header focus when no modal is open.
-	// When the prestige modal is open, Left/Right are forwarded to the tab
-	// (for confirm button navigation).
 	case messages.NavLeftMsg:
 		if m.activeModal == ModalNone {
 			m.focusedHeader = (m.focusedHeader + headerCount - 1) % headerCount
-			return m, nil
-		}
-		if m.activeModal == ModalPrestige {
-			newModel, c := m.prestigeTab.Update(msg)
-			if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
-				m.prestigeTab = pt
-			}
-			return m, c
 		}
 		return m, nil
 
 	case messages.NavRightMsg:
 		if m.activeModal == ModalNone {
 			m.focusedHeader = (m.focusedHeader + 1) % headerCount
-			return m, nil
-		}
-		if m.activeModal == ModalPrestige {
-			newModel, c := m.prestigeTab.Update(msg)
-			if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
-				m.prestigeTab = pt
-			}
-			return m, c
 		}
 		return m, nil
 	}
@@ -224,9 +305,6 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	// Forward nav messages to the active modal's content tab.
-	// The shop tab uses up/down to navigate its list and confirm to purchase.
-	// The prestige tab uses up/down/confirm for its inline confirm dialog.
-	// Achievements and other modals use the outer modal's Esc-button behaviour.
 	if m.activeModal != ModalNone {
 		switch msg.(type) {
 		case messages.NavUpMsg, messages.NavDownMsg, messages.NavConfirmMsg:
@@ -238,15 +316,9 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 				if c != nil {
 					cmds = append(cmds, c)
 				}
-			} else if m.activeModal == ModalPrestige {
-				newModel, c := m.prestigeTab.Update(msg)
-				if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
-					m.prestigeTab = pt
-				}
-				if c != nil {
-					cmds = append(cmds, c)
-				}
 			} else {
+				// For Prestige, Achievements, and any other modal: route to the
+				// outer modal's [Esc] button.
 				newModal, c := m.modal.Update(msg)
 				m.modal = newModal
 				if c != nil {
@@ -261,13 +333,13 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 			switch m.focusedHeader {
 			case 1:
 				m.activeModal = ModalShop
-				m.modal = components.NewModal(m.t)
+				m.modal = components.NewTabModal(m.t)
 			case 2:
 				m.activeModal = ModalPrestige
-				m.modal = components.NewModal(m.t)
+				m.modal = components.NewTabModal(m.t)
 			case 3:
 				m.activeModal = ModalAchievements
-				m.modal = components.NewModal(m.t)
+				m.modal = components.NewTabModal(m.t)
 			}
 			return m, nil
 		}
@@ -322,7 +394,6 @@ func (m WorldModel) View() string {
 	borderFg := lipgloss.Color(m.t.BorderColor())
 
 	// Header: [C]lick is always the active background view.
-	// Arrow keys move focusedHeader; Enter opens the focused modal.
 	type headerItem struct {
 		label string
 		modal ModalType
@@ -339,13 +410,10 @@ func (m WorldModel) View() string {
 		var style lipgloss.Style
 		switch {
 		case m.activeModal != ModalNone && item.modal == m.activeModal:
-			// The currently-open modal's header item.
 			style = m.activeStyle
 		case m.activeModal == ModalNone && i == m.focusedHeader:
-			// Arrow-key cursor is here.
 			style = m.focusedStyle
 		case m.activeModal == ModalNone && item.modal == ModalNone:
-			// Click is the active background view (when cursor is elsewhere).
 			style = m.activeStyle
 		default:
 			style = m.dimStyle
@@ -386,7 +454,15 @@ func (m WorldModel) View() string {
 			title, content = "ACHIEVEMENTS", m.achTab.View()
 		}
 		// Overlay the modal on top of the live click-tab background.
-		contentArea = m.modal.View(title, content, bgContent, m.width, contentHeight)
+		modalView := m.modal.View(title, content, bgContent, m.width, contentHeight)
+
+		if m.confirmOpen {
+			// Overlay the confirm dialog on top of the prestige modal.
+			confirmTitle, confirmQuestion := m.confirmContent()
+			contentArea = m.confirmModal.View(confirmTitle, confirmQuestion, modalView, m.width, contentHeight)
+		} else {
+			contentArea = modalView
+		}
 	} else {
 		contentArea = bgContent
 	}
