@@ -22,12 +22,14 @@ type ConfirmMsg struct{ Confirmed bool }
 //	Esc           → handled by the caller as a cancel shortcut
 type ConfirmModal struct {
 	t              theme.Theme
-	confirmFocused bool // false = Cancel focused (default), true = Confirm focused
+	label          string // inner text of the confirm button, e.g. "Quit", "Prestige"
+	confirmFocused bool   // false = Cancel focused (default), true = Confirm focused
 }
 
 // NewConfirmModal returns a ConfirmModal with Cancel pre-focused.
-func NewConfirmModal(t theme.Theme) ConfirmModal {
-	return ConfirmModal{t: t}
+// label is the inner text shown on the confirm button (e.g. "Quit", "Confirm").
+func NewConfirmModal(t theme.Theme, label string) ConfirmModal {
+	return ConfirmModal{t: t, label: label}
 }
 
 // Update handles navigation between buttons and emits ConfirmMsg on selection.
@@ -55,13 +57,13 @@ func (m ConfirmModal) View(title, question, bgContent string, width, height int)
 //
 // Layout (7 rows):
 //
-//	┌────── Title ──────┐
-//	│                   │
-//	│     question      │
-//	│                   │
-//	│  [ Cancel ] [Quit]│
-//	│                   │
-//	└───────────────────┘
+//	┌───────── Title ────────┐
+//	│                        │
+//	│         question       │
+//	│                        │
+//	│  [ Cancel ] [Confirm]  │
+//	│                        │
+//	└────────────────────────┘
 func (m ConfirmModal) renderBox(title, question string, width int) string {
 	const borderColor = "#ffffff"
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
@@ -90,9 +92,9 @@ func (m ConfirmModal) renderBox(title, question string, width int) string {
 	qRight := qPad - qLeft
 	questionLine := side + strings.Repeat(" ", qLeft) + question + strings.Repeat(" ", qRight) + side
 
-	// Button labels — fixed widths so centering math is stable.
+	// Button labels.
 	const cancelLabel = "[ Cancel ]"
-	const confirmLabel = "[  Quit  ]"
+	confirmLabel := "[ " + m.label + " ]"
 	const buttonGap = "   "
 
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.t.DimText()))

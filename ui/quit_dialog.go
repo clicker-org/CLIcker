@@ -34,7 +34,7 @@ func (d quitDialog) handle(msg tea.Msg) (quitDialog, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case quitRequestedMsg:
 		if !d.open {
-			d.modal = components.NewConfirmModal(d.t)
+			d.modal = components.NewConfirmModal(d.t, "Quit")
 			d.open = true
 		}
 		return d, nil, true
