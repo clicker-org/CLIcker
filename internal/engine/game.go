@@ -2,7 +2,9 @@ package engine
 
 import (
 	"github.com/clicker-org/clicker/internal/achievement"
+	"github.com/clicker-org/clicker/internal/economy"
 	"github.com/clicker-org/clicker/internal/gamestate"
+	"github.com/clicker-org/clicker/internal/player"
 	"github.com/clicker-org/clicker/internal/upgrade"
 	"github.com/clicker-org/clicker/internal/world"
 )
@@ -114,4 +116,132 @@ func (e *Engine) PurchaseBuyOn(worldID, buyOnID string, playerLevel int) (float6
 	// Recompute CPS after the purchase.
 	ws.CPS = upgrade.CalculateWorldCPS(reg, ws.BuyOnCounts, ws.PurchasedUpgrades, ws.PrestigeMultiplier, 1.0)
 	return cost, true
+}
+
+// CanPrestige reports whether the player has met the prestige threshold for the
+// given world. Returns false for unknown worlds.
+func (e *Engine) CanPrestige(worldID string) bool {
+	ws, ok := e.State.Worlds[worldID]
+	if !ok {
+		return false
+	}
+	w, ok := e.WorldReg.Get(worldID)
+	if !ok {
+		return false
+	}
+	threshold := w.Config().PrestigeThreshold
+	switch threshold.Type {
+	case "coins_earned":
+		return ws.TotalCoinsEarned >= threshold.Value
+	case "buy_ons_owned":
+		total := 0
+		for _, count := range ws.BuyOnCounts {
+			total += count
+		}
+		return float64(total) >= threshold.Value
+	case "completion_percent":
+		return ws.CompletionPercent*100 >= threshold.Value
+	default:
+		return false
+	}
+}
+
+// PrestigeProgress returns (current, threshold) for the active prestige metric
+// in the given world. Used by the UI to render a progress bar.
+func (e *Engine) PrestigeProgress(worldID string) (current, threshold float64) {
+	ws, ok := e.State.Worlds[worldID]
+	if !ok {
+		return 0, 1
+	}
+	w, ok := e.WorldReg.Get(worldID)
+	if !ok {
+		return 0, 1
+	}
+	cfg := w.Config().PrestigeThreshold
+	switch cfg.Type {
+	case "coins_earned":
+		return ws.TotalCoinsEarned, cfg.Value
+	case "buy_ons_owned":
+		total := 0
+		for _, count := range ws.BuyOnCounts {
+			total += count
+		}
+		return float64(total), cfg.Value
+	case "completion_percent":
+		return ws.CompletionPercent * 100, cfg.Value
+	default:
+		return 0, cfg.Value
+	}
+}
+
+// ExecutePrestige performs a world prestige: computes rewards, applies them to
+// the player, and resets the world state. Returns (reward, true) on success or
+// (zero, false) if the prestige threshold has not been met.
+func (e *Engine) ExecutePrestige(worldID string) (economy.PrestigeReward, bool) {
+	if !e.CanPrestige(worldID) {
+		return economy.PrestigeReward{}, false
+	}
+	ws := e.State.Worlds[worldID]
+
+	reward := economy.CalculatePrestigeReward(ws.TotalCoinsEarned, ws.PrestigeCount, ws.PrestigeMultiplier)
+
+	// Apply rewards to the player.
+	e.State.Player.GeneralCoins += reward.GeneralCoinsEarned
+	e.State.Player.LifetimeGeneralCoins += reward.GeneralCoinsEarned
+	player.AddXP(&e.State.Player, reward.XPGrant)
+
+	// Update prestige state.
+	ws.PrestigeCount++
+	ws.PrestigeMultiplier = reward.PrestigeMultiplier
+
+	// Reset world — coins, buy-ons, CPS. Keep: prestige count/multiplier,
+	// exchange rate, offline cap upgrade level, lifetime stats (TotalCoinsEarned,
+	// TotalClicks) and completion progress.
+	ws.Coins = 0
+	ws.BuyOnCounts = make(map[string]int)
+	ws.PurchasedUpgrades = make(map[string]bool)
+	ws.CPS = 0
+
+	return reward, true
+}
+
+// CanExchangeBoost reports whether the player has a non-zero world coin balance
+// to sacrifice for an exchange boost.
+func (e *Engine) CanExchangeBoost(worldID string) bool {
+	ws, ok := e.State.Worlds[worldID]
+	if !ok {
+		return false
+	}
+	return ws.Coins > 0
+}
+
+// ExchangeBoostPreview returns the projected result of an exchange boost
+// without actually executing it. Safe to call at any time.
+func (e *Engine) ExchangeBoostPreview(worldID string) economy.ExchangeBoostResult {
+	ws, ok := e.State.Worlds[worldID]
+	if !ok {
+		return economy.ExchangeBoostResult{}
+	}
+	return economy.CalculateExchangeBoost(ws.Coins, ws.ExchangeRate)
+}
+
+// ExecuteExchangeBoost performs an exchange boost: sacrifices a portion of the
+// world coin balance and converts it to general coins at the current exchange
+// rate. The exchange rate is permanently improved. Returns (result, true) on
+// success or (zero, false) if the balance is zero.
+func (e *Engine) ExecuteExchangeBoost(worldID string) (economy.ExchangeBoostResult, bool) {
+	if !e.CanExchangeBoost(worldID) {
+		return economy.ExchangeBoostResult{}, false
+	}
+	ws := e.State.Worlds[worldID]
+
+	result := economy.CalculateExchangeBoost(ws.Coins, ws.ExchangeRate)
+
+	ws.Coins -= result.WorldCoinsCost
+	ws.ExchangeRate = result.NewExchangeRate
+
+	e.State.Player.GeneralCoins += result.GeneralCoinsEarned
+	e.State.Player.LifetimeGeneralCoins += result.GeneralCoinsEarned
+
+	return result, true
 }

@@ -66,16 +66,17 @@ func NewWorldModel(
 ) WorldModel {
 	contentH := max(height-4, 3)
 	return WorldModel{
-		t:           t,
-		eng:         eng,
-		gs:          gs,
-		worldID:     worldID,
-		clickTab:    tabs.NewClickTab(eng, worldID, t, animReg, animKey, width, contentH),
-		shopTab:     tabs.NewShopTab(eng, worldID, t, width, contentH),
-		statusBar:   components.NewStatusBar(t, width),
-		width:       width,
-		height:      height,
-		activeModal: ModalNone,
+		t:            t,
+		eng:          eng,
+		gs:           gs,
+		worldID:      worldID,
+		clickTab:     tabs.NewClickTab(eng, worldID, t, animReg, animKey, width, contentH),
+		shopTab:      tabs.NewShopTab(eng, worldID, t, width, contentH),
+		prestigeTab:  tabs.NewPrestigeTab(eng, worldID, t, width, contentH),
+		statusBar:    components.NewStatusBar(t, width),
+		width:        width,
+		height:       height,
+		activeModal:  ModalNone,
 		activeStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(t.AccentColor())).
 			Bold(true).
@@ -100,6 +101,7 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 		contentH := max(msg.Height-4, 3)
 		m.clickTab = m.clickTab.Resize(msg.Width, contentH)
 		m.shopTab = m.shopTab.Resize(msg.Width, contentH)
+		m.prestigeTab = m.prestigeTab.Resize(msg.Width, contentH)
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -129,12 +131,29 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 
 		case "p", "P":
 			if m.activeModal == ModalNone {
+				// Open the prestige modal.
 				m.activeModal = ModalPrestige
 				m.focusedHeader = 2
 				m.modal = components.NewModal(m.t)
+				return m, nil
 			} else if m.activeModal == ModalPrestige {
-				m.activeModal = ModalNone
-				m.focusedHeader = 0
+				// Forward P to the prestige tab (triggers prestige confirm).
+				newModel, c := m.prestigeTab.Update(msg)
+				if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
+					m.prestigeTab = pt
+				}
+				return m, c
+			}
+			return m, nil
+
+		case "e", "E":
+			if m.activeModal == ModalPrestige {
+				// Forward E to the prestige tab (triggers exchange boost confirm).
+				newModel, c := m.prestigeTab.Update(msg)
+				if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
+					m.prestigeTab = pt
+				}
+				return m, c
 			}
 			return m, nil
 
@@ -171,15 +190,33 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 		return m, nil
 
 	// Arrow-key cursor: moves the header focus when no modal is open.
+	// When the prestige modal is open, Left/Right are forwarded to the tab
+	// (for confirm button navigation).
 	case messages.NavLeftMsg:
 		if m.activeModal == ModalNone {
 			m.focusedHeader = (m.focusedHeader + headerCount - 1) % headerCount
+			return m, nil
+		}
+		if m.activeModal == ModalPrestige {
+			newModel, c := m.prestigeTab.Update(msg)
+			if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
+				m.prestigeTab = pt
+			}
+			return m, c
 		}
 		return m, nil
 
 	case messages.NavRightMsg:
 		if m.activeModal == ModalNone {
 			m.focusedHeader = (m.focusedHeader + 1) % headerCount
+			return m, nil
+		}
+		if m.activeModal == ModalPrestige {
+			newModel, c := m.prestigeTab.Update(msg)
+			if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
+				m.prestigeTab = pt
+			}
+			return m, c
 		}
 		return m, nil
 	}
@@ -188,8 +225,8 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 
 	// Forward nav messages to the active modal's content tab.
 	// The shop tab uses up/down to navigate its list and confirm to purchase.
-	// Other modals (prestige, achievements) still use the modal component's
-	// Esc-button focus behaviour via the modal component.
+	// The prestige tab uses up/down/confirm for its inline confirm dialog.
+	// Achievements and other modals use the outer modal's Esc-button behaviour.
 	if m.activeModal != ModalNone {
 		switch msg.(type) {
 		case messages.NavUpMsg, messages.NavDownMsg, messages.NavConfirmMsg:
@@ -197,6 +234,14 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 				newModel, c := m.shopTab.Update(msg)
 				if st, ok := newModel.(tabs.ShopTabModel); ok {
 					m.shopTab = st
+				}
+				if c != nil {
+					cmds = append(cmds, c)
+				}
+			} else if m.activeModal == ModalPrestige {
+				newModel, c := m.prestigeTab.Update(msg)
+				if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
+					m.prestigeTab = pt
 				}
 				if c != nil {
 					cmds = append(cmds, c)
