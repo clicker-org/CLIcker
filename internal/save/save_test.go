@@ -88,3 +88,63 @@ func TestMigrate_AlreadyCurrent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, CurrentVersion, sf.Version)
 }
+
+// -- HMAC signing tests --
+
+func TestSign_Deterministic(t *testing.T) {
+	data := []byte("hello clicker")
+	assert.Equal(t, sign(data), sign(data))
+}
+
+func TestVerify_ValidSignature(t *testing.T) {
+	data := []byte("hello clicker")
+	assert.True(t, verify(data, sign(data)))
+}
+
+func TestVerify_TamperedData(t *testing.T) {
+	sig := sign([]byte("original data"))
+	assert.False(t, verify([]byte("tampered data"), sig))
+}
+
+func TestVerify_TamperedSig(t *testing.T) {
+	data := []byte("hello clicker")
+	assert.False(t, verify(data, "deadbeefdeadbeef"))
+}
+
+func TestVerify_InvalidHex(t *testing.T) {
+	assert.False(t, verify([]byte("data"), "not-hex!!"))
+}
+
+func TestLoad_TamperedData(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "save.json")
+
+	gs := gamestate.NewGameState()
+	err := Save(gs, map[string]bool{}, Settings{AnimationsEnabled: true, ActiveTheme: "space"}, path)
+	require.NoError(t, err)
+
+	// Overwrite with a forged envelope: valid JSON structure but wrong sig.
+	forged := `{"data":"dGFtcGVyZWQ=","sig":"0000000000000000000000000000000000000000000000000000000000000000"}`
+	require.NoError(t, os.WriteFile(path, []byte(forged), 0o600))
+
+	sf, err := Load(path)
+	assert.NoError(t, err)
+	assert.Equal(t, CurrentVersion, sf.Version) // returns DefaultSaveFile
+}
+
+func TestLoad_PlainJSONRejected(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "save.json")
+
+	// Write a plain (unsigned) JSON file simulating a legacy/external edit.
+	plain, err := os.Create(path)
+	require.NoError(t, err)
+	_, err = plain.WriteString(`{"version":1,"last_screen":"overview"}`)
+	plain.Close()
+	require.NoError(t, err)
+
+	sf, err := Load(path)
+	// No error, but starts fresh because it lacks a valid signature.
+	assert.NoError(t, err)
+	assert.Equal(t, CurrentVersion, sf.Version)
+}

@@ -1,6 +1,7 @@
 package save
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -25,12 +26,23 @@ func SavePath() string {
 	return filepath.Join(configHome, "clicker", "save.json")
 }
 
-// Save writes the current game state to path.
+// Save writes the current game state to path as a signed envelope.
+// The save file contains a base64-encoded JSON payload and its HMAC-SHA256
+// signature. Load will reject files whose signature does not match.
 func Save(gs gamestate.GameState, earned map[string]bool, settings Settings, path string) error {
 	sf := SaveFileFromGameState(gs, earned, settings)
-	data, err := json.MarshalIndent(sf, "", "  ")
+	payload, err := json.MarshalIndent(sf, "", "  ")
 	if err != nil {
 		return fmt.Errorf("save: marshal: %w", err)
+	}
+	encoded := base64.StdEncoding.EncodeToString(payload)
+	envelope := signedEnvelope{
+		Data: encoded,
+		Sig:  sign([]byte(encoded)),
+	}
+	data, err := json.MarshalIndent(envelope, "", "  ")
+	if err != nil {
+		return fmt.Errorf("save: marshal envelope: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("save: mkdir: %w", err)
@@ -42,8 +54,9 @@ func Save(gs gamestate.GameState, earned map[string]bool, settings Settings, pat
 }
 
 // Load reads a SaveFile from path. If the file does not exist, returns
-// DefaultSaveFile. If the file is corrupt, logs a warning and returns
-// DefaultSaveFile. Applies migrations after a successful load.
+// DefaultSaveFile with no error. If the file is corrupt or its HMAC signature
+// does not match, logs a warning and returns DefaultSaveFile. Applies
+// migrations after a successful load.
 func Load(path string) (SaveFile, error) {
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -52,11 +65,30 @@ func Load(path string) (SaveFile, error) {
 	if err != nil {
 		return DefaultSaveFile(), fmt.Errorf("save: read %q: %w", path, err)
 	}
-	var sf SaveFile
-	if err := json.Unmarshal(data, &sf); err != nil {
-		log.Printf("save: corrupt save file at %q, starting fresh: %v", path, err)
+
+	var envelope signedEnvelope
+	if err := json.Unmarshal(data, &envelope); err != nil || envelope.Data == "" {
+		log.Printf("save: unrecognised save format at %q, starting fresh", path)
 		return DefaultSaveFile(), nil
 	}
+
+	if !verify([]byte(envelope.Data), envelope.Sig) {
+		log.Printf("save: signature mismatch at %q — file may have been tampered with, starting fresh", path)
+		return DefaultSaveFile(), nil
+	}
+
+	payload, err := base64.StdEncoding.DecodeString(envelope.Data)
+	if err != nil {
+		log.Printf("save: base64 decode failed at %q, starting fresh: %v", path, err)
+		return DefaultSaveFile(), nil
+	}
+
+	var sf SaveFile
+	if err := json.Unmarshal(payload, &sf); err != nil {
+		log.Printf("save: corrupt save payload at %q, starting fresh: %v", path, err)
+		return DefaultSaveFile(), nil
+	}
+
 	if err := Migrate(&sf); err != nil {
 		return DefaultSaveFile(), err
 	}

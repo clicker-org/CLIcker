@@ -10,6 +10,13 @@ import (
 // CurrentVersion is the current save file schema version.
 const CurrentVersion = 1
 
+// signedEnvelope is the on-disk format for save files.
+// Data holds the base64-encoded JSON of a SaveFile; Sig is its HMAC-SHA256.
+type signedEnvelope struct {
+	Data string `json:"data"`
+	Sig  string `json:"sig"`
+}
+
 // WorldSaveData holds all persisted data for a single world.
 type WorldSaveData struct {
 	WorldID                string             `json:"world_id"`
