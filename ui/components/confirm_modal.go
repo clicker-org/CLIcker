@@ -23,22 +23,22 @@ type ConfirmMsg struct{ Confirmed bool }
 type ConfirmModal struct {
 	t              theme.Theme
 	label          string // inner text of the confirm button, e.g. "Quit", "Prestige"
-	confirmFocused bool   // false = Cancel focused (default), true = Confirm focused
+	confirmFocused bool   // true = Confirm focused (default), false = Cancel focused
 }
 
-// NewConfirmModal returns a ConfirmModal with Cancel pre-focused.
+// NewConfirmModal returns a ConfirmModal with Confirm pre-focused.
 // label is the inner text shown on the confirm button (e.g. "Quit", "Confirm").
 func NewConfirmModal(t theme.Theme, label string) ConfirmModal {
-	return ConfirmModal{t: t, label: label}
+	return ConfirmModal{t: t, label: label, confirmFocused: true}
 }
 
 // Update handles navigation between buttons and emits ConfirmMsg on selection.
 func (m ConfirmModal) Update(msg tea.Msg) (ConfirmModal, tea.Cmd) {
 	switch msg.(type) {
 	case messages.NavLeftMsg:
-		m.confirmFocused = false
-	case messages.NavRightMsg:
 		m.confirmFocused = true
+	case messages.NavRightMsg:
+		m.confirmFocused = false
 	case messages.NavConfirmMsg:
 		confirmed := m.confirmFocused
 		return m, func() tea.Msg { return ConfirmMsg{Confirmed: confirmed} }
@@ -61,7 +61,7 @@ func (m ConfirmModal) View(title, question, bgContent string, width, height int)
 //	│                        │
 //	│         question       │
 //	│                        │
-//	│  [ Cancel ] [Confirm]  │
+//	│  [Confirm] [ Cancel ]  │
 //	│                        │
 //	└────────────────────────┘
 func (m ConfirmModal) renderBox(title, question string, width int) string {
@@ -112,12 +112,12 @@ func (m ConfirmModal) renderBox(title, question string, width int) string {
 		confirmStr = dimStyle.Render(confirmLabel)
 	}
 
-	totalButtonW := lipgloss.Width(cancelLabel) + lipgloss.Width(buttonGap) + lipgloss.Width(confirmLabel)
+	totalButtonW := lipgloss.Width(confirmLabel) + lipgloss.Width(buttonGap) + lipgloss.Width(cancelLabel)
 	bPad := max(innerWidth-totalButtonW, 0)
 	bLeft := bPad / 2
 	bRight := bPad - bLeft
 	buttonLine := side +
-		strings.Repeat(" ", bLeft) + cancelStr + buttonGap + confirmStr + strings.Repeat(" ", bRight) +
+		strings.Repeat(" ", bLeft) + confirmStr + buttonGap + cancelStr + strings.Repeat(" ", bRight) +
 		side
 
 	blank := side + strings.Repeat(" ", innerWidth) + side
