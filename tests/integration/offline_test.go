@@ -118,7 +118,7 @@ func TestOfflineApply_WithEarnedCPS_CorrectlyAccumulates(t *testing.T) {
 	// Phase 3: load and reconstruct — completely separate from Phase 1.
 	sf, err := save.Load(savePath)
 	require.NoError(t, err)
-	gs := save.GameStateFromSave(sf, world.DefaultRegistry.IDs())
+	gs := save.GameStateFromSave(sf, world.DefaultRegistry)
 
 	// Phase 4: apply offline income using the reconstructed state.
 	savedAt := time.Now().Add(-1 * time.Hour)

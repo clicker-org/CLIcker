@@ -87,7 +87,7 @@ func TestGameStateFromSave_ReconstitutesAllWorlds(t *testing.T) {
 	}
 
 	worldIDs := world.DefaultRegistry.IDs()
-	gs := save.GameStateFromSave(sf, worldIDs)
+	gs := save.GameStateFromSave(sf, world.DefaultRegistry)
 
 	assert.Equal(t, 200, gs.Player.XP)
 	assert.Equal(t, 2, gs.Player.Level)
@@ -156,7 +156,7 @@ func TestBuyOnPurchase_SaveLoad_TickEarnsCoins(t *testing.T) {
 	// Phase 3: load into a completely fresh engine — no shared state with Phase 1.
 	sf, err := save.Load(savePath)
 	require.NoError(t, err)
-	gs := save.GameStateFromSave(sf, world.DefaultRegistry.IDs())
+	gs := save.GameStateFromSave(sf, world.DefaultRegistry)
 	eng2 := engine.New(gs, world.DefaultRegistry, achievement.NewAchievementRegistry())
 
 	// Phase 4: tick 1 second and verify the loaded CPS drives coin accumulation.

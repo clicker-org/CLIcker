@@ -70,7 +70,7 @@ func main() {
 	})
 
 	// reconstruct game state from save.
-	gs := save.GameStateFromSave(sf, worldReg.IDs())
+	gs := save.GameStateFromSave(sf, worldReg)
 
 	// compute and apply offline income.
 	offlineResult := offline.Apply(sf.LastScreen, sf.LastWorldID, sf.SavedAt, &gs)

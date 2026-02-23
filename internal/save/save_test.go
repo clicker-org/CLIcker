@@ -11,6 +11,8 @@ import (
 
 	"github.com/clicker-org/clicker/internal/gamestate"
 	"github.com/clicker-org/clicker/internal/player"
+	"github.com/clicker-org/clicker/internal/world"
+	_ "github.com/clicker-org/clicker/internal/world/worlds"
 )
 
 func TestSavePath(t *testing.T) {
@@ -147,4 +149,16 @@ func TestLoad_PlainJSONRejected(t *testing.T) {
 	// No error, but starts fresh because it lacks a valid signature.
 	assert.NoError(t, err)
 	assert.Equal(t, CurrentVersion, sf.Version)
+}
+
+func TestGameStateFromSave_MissingWorldUsesBaseExchangeRate(t *testing.T) {
+	sf := DefaultSaveFile()
+	sf.Worlds = map[string]WorldSaveData{}
+
+	gs := GameStateFromSave(sf, world.DefaultRegistry)
+	for _, w := range world.DefaultRegistry.List() {
+		ws, ok := gs.Worlds[w.ID()]
+		require.True(t, ok, "missing world state for %s", w.ID())
+		assert.InDelta(t, w.BaseExchangeRate(), ws.ExchangeRate, 0.0000001)
+	}
 }

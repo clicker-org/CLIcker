@@ -105,10 +105,12 @@ func Load(path string) (SaveFile, error) {
 	return sf, nil
 }
 
-// GameStateFromSave reconstructs a GameState from a SaveFile. worldIDs is used
-// to ensure that all known worlds have a WorldState entry, even if missing from
-// the save (e.g. after adding a new world).
-func GameStateFromSave(sf SaveFile, worldIDs []string) gamestate.GameState {
+// GameStateFromSave reconstructs a GameState from a SaveFile.
+//
+// worldReg is used to ensure all registered worlds have a WorldState entry,
+// even when missing from the save (e.g. after adding a new world). Missing
+// worlds are initialized with their configured base exchange rate.
+func GameStateFromSave(sf SaveFile, worldReg *world.WorldRegistry) gamestate.GameState {
 	gs := gamestate.NewGameState()
 	gs.Player = sf.Player
 	if gs.Player.WorldTotalCoinsEarned == nil {
@@ -119,7 +121,7 @@ func GameStateFromSave(sf SaveFile, worldIDs []string) gamestate.GameState {
 	gs.ActiveWorldID = sf.LastWorldID
 
 	// Reconstruct worlds — use saved data where available, otherwise fresh state.
-	for _, id := range worldIDs {
+	for _, id := range worldReg.IDs() {
 		if data, ok := sf.Worlds[id]; ok {
 			ws := &world.WorldState{
 				WorldID:                data.WorldID,
@@ -143,7 +145,11 @@ func GameStateFromSave(sf SaveFile, worldIDs []string) gamestate.GameState {
 			}
 			gs.Worlds[id] = ws
 		} else {
-			gs.Worlds[id] = world.NewWorldState(id, 0)
+			baseRate := 0.0
+			if w, ok := worldReg.Get(id); ok {
+				baseRate = w.BaseExchangeRate()
+			}
+			gs.Worlds[id] = world.NewWorldState(id, baseRate)
 		}
 	}
 
