@@ -185,7 +185,7 @@ func (c *canvas) drawLine(a, b point, r rune) {
 func (c canvas) String() string {
 	lines := make([]string, c.h)
 	for y := 0; y < c.h; y++ {
-		lines[y] = strings.TrimRight(string(c.cells[y]), " ")
+		lines[y] = string(c.cells[y])
 	}
 	return strings.Join(lines, "\n")
 }
@@ -226,14 +226,9 @@ func (g GalaxyMap) nodePositions(width, height, n int) []point {
 
 func (g GalaxyMap) renderCompact(worlds []WorldVisual, t theme.Theme) string {
 	g.normalize(len(worlds))
-
-	head := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(t.AccentColor())).
-		Bold(true).
-		Render("CLIcker • Galaxy Overview")
-
+	bg := lipgloss.Color(t.Background())
 	if len(worlds) == 0 {
-		return head + "\n\n(no worlds registered)"
+		return lipgloss.NewStyle().Width(g.Width).Background(bg).Render("(no worlds registered)")
 	}
 
 	list := make([]string, 0, len(worlds))
@@ -258,18 +253,20 @@ func (g GalaxyMap) renderCompact(worlds []WorldVisual, t theme.Theme) string {
 		dimStyle.Render(fmt.Sprintf("Coins: %.2f", w.Coins)),
 	}, "\n")
 
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		head,
-		"",
-		strings.Join(list, "\n"),
-		"",
-		details,
-	)
+	return lipgloss.NewStyle().
+		Width(g.Width).
+		Background(bg).
+		Render(lipgloss.JoinVertical(
+			lipgloss.Left,
+			strings.Join(list, "\n"),
+			"",
+			details,
+		))
 }
 
 func (g GalaxyMap) renderGalaxy(worlds []WorldVisual, t theme.Theme) string {
 	g.normalize(len(worlds))
+	bg := lipgloss.Color(t.Background())
 	mapW := g.Width
 	mapH := g.Height - 9
 	if mapH < 10 {
@@ -316,6 +313,9 @@ func (g GalaxyMap) renderGalaxy(worlds []WorldVisual, t theme.Theme) string {
 
 	mapText := c.String()
 	mapStyle := lipgloss.NewStyle().
+		Width(mapW).
+		Height(mapH).
+		Background(bg).
 		Foreground(lipgloss.Color(t.PrimaryText())).
 		Render(mapText)
 
@@ -330,6 +330,7 @@ func (g GalaxyMap) renderGalaxy(worlds []WorldVisual, t theme.Theme) string {
 		Render(strings.ToUpper(w.Name))
 	cardDim := lipgloss.NewStyle().Foreground(lipgloss.Color(t.DimText()))
 	card := lipgloss.NewStyle().
+		Background(bg).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(accent)).
 		Padding(0, 1).
@@ -338,25 +339,41 @@ func (g GalaxyMap) renderGalaxy(worlds []WorldVisual, t theme.Theme) string {
 			cardDim.Render(fmt.Sprintf("Completion: %.1f%%", w.Completion)),
 			cardDim.Render(fmt.Sprintf("CPS: %.2f   Prestige: %d", w.CPS, w.Prestige)),
 			cardDim.Render(fmt.Sprintf("Coins: %.2f", w.Coins)),
-			cardDim.Render(fmt.Sprintf("Focus: %d/%d", g.FocusedIndex+1, len(worlds))),
 		}, "\n"))
 
-	return lipgloss.JoinVertical(lipgloss.Center, mapStyle, "", lipgloss.PlaceHorizontal(g.Width, lipgloss.Center, card))
+	cardRow := lipgloss.Place(
+		g.Width,
+		lipgloss.Height(card),
+		lipgloss.Center,
+		lipgloss.Top,
+		card,
+		lipgloss.WithWhitespaceBackground(bg),
+	)
+
+	mapRow := lipgloss.Place(
+		g.Width,
+		mapH,
+		lipgloss.Left,
+		lipgloss.Top,
+		mapStyle,
+		lipgloss.WithWhitespaceBackground(bg),
+	)
+
+	return lipgloss.NewStyle().
+		Width(g.Width).
+		Height(g.Height).
+		Background(bg).
+		Render(lipgloss.JoinVertical(
+			lipgloss.Left,
+			mapRow,
+			"",
+			cardRow,
+		))
 }
 
 // View renders a galaxy node map with all worlds navigable.
 func (g GalaxyMap) View(worlds []WorldVisual, t theme.Theme) string {
 	bg := lipgloss.Color(t.Background())
-	accentFg := lipgloss.Color(t.AccentColor())
-
-	title := lipgloss.NewStyle().Foreground(accentFg).Bold(true).Render(strings.Join([]string{
-		"   _____ _      _____      _            ",
-		"  / ____| |    |_   _|    | |           ",
-		" | |    | |      | |   ___| | _____ _ __",
-		" | |    | |      | |  / __| |/ / _ \\ '__|",
-		" | |____| |____ _| |_| (__|   <  __/ |   ",
-		"  \\_____|______|_____\\___|_|\\_\\___|_|   ",
-	}, "\n"))
 
 	var body string
 	if len(worlds) == 0 {
@@ -367,13 +384,18 @@ func (g GalaxyMap) View(worlds []WorldVisual, t theme.Theme) string {
 		body = g.renderGalaxy(worlds, t)
 	}
 
-	content := lipgloss.JoinVertical(lipgloss.Center, title, "", body)
+	content := body
+	content = lipgloss.NewStyle().
+		Background(bg).
+		Width(g.Width).
+		Height(g.Height).
+		Render(content)
 	h := g.Height
 	if h <= 0 {
 		h = 24
 	}
 	return lipgloss.Place(g.Width, h,
-		lipgloss.Center, lipgloss.Center,
+		lipgloss.Center, lipgloss.Top,
 		content,
 		lipgloss.WithWhitespaceBackground(bg))
 }

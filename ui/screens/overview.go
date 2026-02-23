@@ -23,6 +23,12 @@ type OverviewModel struct {
 	height   int
 }
 
+const (
+	overviewTitleHeight = 6
+	overviewFooterLines = 3
+	overviewTitleGap    = 1
+)
+
 // NewOverviewModel creates an OverviewModel.
 func NewOverviewModel(
 	t theme.Theme,
@@ -30,7 +36,7 @@ func NewOverviewModel(
 	worldReg *world.WorldRegistry,
 	width, height int,
 ) OverviewModel {
-	mapH := height - 3
+	mapH := height - (overviewTitleHeight + overviewTitleGap + overviewFooterLines)
 	if mapH < 3 {
 		mapH = 3
 	}
@@ -75,7 +81,7 @@ func (m OverviewModel) Update(msg tea.Msg) (OverviewModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.gmap.Width = msg.Width
-		mapH := msg.Height - 3
+		mapH := msg.Height - (overviewTitleHeight + overviewTitleGap + overviewFooterLines)
 		if mapH < 3 {
 			mapH = 3
 		}
@@ -86,11 +92,27 @@ func (m OverviewModel) Update(msg tea.Msg) (OverviewModel, tea.Cmd) {
 
 func (m OverviewModel) View() string {
 	bg := lipgloss.Color(m.t.Background())
+	accent := lipgloss.Color(m.t.AccentColor())
 	worlds := m.worldVisuals()
+
+	title := lipgloss.NewStyle().
+		Width(m.width).
+		Background(bg).
+		Foreground(accent).
+		Bold(true).
+		Render(strings.Join([]string{
+			"   _____ _      _____      _            ",
+			"  / ____| |    |_   _|    | |           ",
+			" | |    | |      | |   ___| | _____ _ __",
+			" | |    | |      | |  / __| |/ / _ \\ '__|",
+			" | |____| |____ _| |_| (__|   <  __/ |   ",
+			"  \\_____|______|_____\\___|_|\\_\\___|_|   ",
+		}, "\n"))
 
 	// Galaxy map fills available space; gmap handles its own height via lipgloss.Place.
 	mapArea := lipgloss.NewStyle().
 		Width(m.width).
+		Height(m.gmap.Height).
 		Background(bg).
 		Render(m.gmap.View(worlds, m.t))
 
@@ -118,7 +140,7 @@ func (m OverviewModel) View() string {
 		Foreground(lipgloss.Color(m.t.DimText())).
 		Render(helpLine)
 
-	return mapArea + "\n" + divider + "\n" + styledStats + "\n" + styledHelp
+	return title + "\n" + mapArea + "\n" + divider + "\n" + styledStats + "\n" + styledHelp
 }
 
 func (m OverviewModel) worldVisuals() []components.WorldVisual {
