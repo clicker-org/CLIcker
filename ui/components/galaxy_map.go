@@ -200,6 +200,16 @@ func shortName(name string, limit int) string {
 	return lipgloss.NewStyle().MaxWidth(limit-1).Render(name) + "…"
 }
 
+func unitProgress(pct float64) float64 {
+	if pct < 0 {
+		return 0
+	}
+	if pct > 100 {
+		return 1
+	}
+	return pct / 100.0
+}
+
 func (g GalaxyMap) nodePositions(width, height, n int) []point {
 	pos := make([]point, n)
 	if n == 0 {
@@ -337,17 +347,25 @@ func (g GalaxyMap) renderGalaxy(worlds []WorldVisual, t theme.Theme) string {
 		Bold(true).
 		Render(strings.ToUpper(w.Name))
 	cardDim := lipgloss.NewStyle().Foreground(lipgloss.Color(t.DimText()))
+	cardInnerWidth := 38
+	completionBar := NewProgressBar(t, cardInnerWidth, accent)
+	completionLabel := cardDim.Render(fmt.Sprintf("Completion: %.1f%%", w.Completion))
+	completionLine := lipgloss.NewStyle().
+		Width(cardInnerWidth).
+		Render(completionBar.View(unitProgress(w.Completion)))
 	card := lipgloss.NewStyle().
 		Background(bg).
+		Width(cardInnerWidth+2).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(accent)).
 		Padding(0, 1).
 		Render(strings.Join([]string{
 			cardDim.Render("SELECTED WORLD"),
 			cardTitle,
-			cardDim.Render(fmt.Sprintf("Completion: %.1f%%", w.Completion)),
 			cardDim.Render(fmt.Sprintf("CPS: %.2f   Prestige: %d", w.CPS, w.Prestige)),
 			cardDim.Render(fmt.Sprintf("Coins: %.2f", w.Coins)),
+			completionLabel,
+			completionLine,
 		}, "\n"))
 
 	cardRow := lipgloss.Place(
