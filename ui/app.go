@@ -36,6 +36,7 @@ type App struct {
 
 	overview      screens.OverviewModel
 	dashboard     screens.DashboardModel
+	achievements  screens.AchievementsModel
 	worldScreen   screens.WorldModel
 	offlineReport screens.OfflineReportModel
 	notification  components.Notification
@@ -70,6 +71,7 @@ func NewApp(
 		saveSettings:  settings,
 		overview:      screens.NewOverviewModel(t, &eng.State, eng.WorldReg, width, height),
 		dashboard:     screens.NewDashboardModel(t, &eng.State, width, height),
+		achievements:  screens.NewAchievementsModel(t, eng, width, height),
 		offlineReport: offlineReport,
 		notification:  components.NewNotification(t),
 		statusBar:     components.NewStatusBar(t, width, eng.WorldReg),
@@ -100,6 +102,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusBar.SetWidth(msg.Width)
 		a.overview, _ = a.overview.Update(msg)
 		a.dashboard, _ = a.dashboard.Update(msg)
+		a.achievements, _ = a.achievements.Update(msg)
 		a.worldScreen, _ = a.worldScreen.Update(msg)
 		a.offlineReport, _ = a.offlineReport.Update(msg)
 		return a, nil
@@ -120,6 +123,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case messages.NavigateToDashboardMsg:
 		a.activeScreen = engine.ScreenDashboard
+		return a, nil
+
+	case messages.NavigateToAchievementsMsg:
+		a.activeScreen = engine.ScreenAchievements
 		return a, nil
 
 	case messages.NavigateToWorldMsg:
@@ -252,6 +259,8 @@ func (a App) routeToActiveScreen(msg tea.Msg) (App, tea.Cmd) {
 		a.overview, cmd = a.overview.Update(msg)
 	case engine.ScreenDashboard:
 		a.dashboard, cmd = a.dashboard.Update(msg)
+	case engine.ScreenAchievements:
+		a.achievements, cmd = a.achievements.Update(msg)
 	case engine.ScreenWorld:
 		a.worldScreen, cmd = a.worldScreen.Update(msg)
 	case engine.ScreenOfflineReport:
@@ -278,6 +287,8 @@ func (a App) View() string {
 		content = a.overview.View()
 	case engine.ScreenDashboard:
 		content = a.dashboard.View()
+	case engine.ScreenAchievements:
+		content = a.achievements.View()
 	case engine.ScreenWorld:
 		content = a.worldScreen.View()
 	default:

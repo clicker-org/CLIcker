@@ -7,6 +7,7 @@ const (
 	ScreenOverview      ScreenID = "overview"
 	ScreenWorld         ScreenID = "world"
 	ScreenDashboard     ScreenID = "dashboard"
+	ScreenAchievements  ScreenID = "achievements"
 	ScreenOfflineReport ScreenID = "offline_report"
 )
 

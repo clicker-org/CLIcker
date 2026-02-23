@@ -29,8 +29,11 @@ func (m DashboardModel) Init() tea.Cmd { return nil }
 func (m DashboardModel) Update(msg tea.Msg) (DashboardModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "esc" {
+		switch msg.String() {
+		case "esc":
 			return m, func() tea.Msg { return messages.NavigateToOverviewMsg{} }
+		case "a", "A":
+			return m, func() tea.Msg { return messages.NavigateToAchievementsMsg{} }
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -66,7 +69,7 @@ func (m DashboardModel) View() string {
 		Foreground(fg).
 		Render(sb.String())
 
-	helpLine := lipgloss.NewStyle().Width(m.width).Background(bg).Foreground(dimFg).Render("  [Esc] Back to Overview")
+	helpLine := lipgloss.NewStyle().Width(m.width).Background(bg).Foreground(dimFg).Render("  [Esc] Back to Overview   [A] Achievements")
 	return body + "\n" + divider + "\n" + helpLine
 }
 

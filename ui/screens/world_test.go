@@ -30,11 +30,12 @@ func TestWorldHotkeys_ToggleModalOpenAndClose(t *testing.T) {
 	m, _ = m.Update(runeKeyMsg('p'))
 	assert.Equal(t, ModalNone, m.activeModal)
 
-	m, _ = m.Update(runeKeyMsg('a'))
-	assert.Equal(t, ModalAchievements, m.activeModal)
-
-	m, _ = m.Update(runeKeyMsg('a'))
-	assert.Equal(t, ModalNone, m.activeModal)
+	updated, cmd := m.Update(runeKeyMsg('a'))
+	m = updated
+	require.NotNil(t, cmd)
+	msg := cmd()
+	_, ok := msg.(messages.NavigateToAchievementsMsg)
+	assert.True(t, ok, "expected NavigateToAchievementsMsg, got %T", msg)
 }
 
 func TestWorldHotkeys_SwitchBetweenModals(t *testing.T) {
@@ -46,8 +47,12 @@ func TestWorldHotkeys_SwitchBetweenModals(t *testing.T) {
 	m, _ = m.Update(runeKeyMsg('p'))
 	assert.Equal(t, ModalPrestige, m.activeModal)
 
-	m, _ = m.Update(runeKeyMsg('a'))
-	assert.Equal(t, ModalAchievements, m.activeModal)
+	updated, cmd := m.Update(runeKeyMsg('a'))
+	m = updated
+	require.NotNil(t, cmd)
+	msg := cmd()
+	_, ok := msg.(messages.NavigateToAchievementsMsg)
+	assert.True(t, ok, "expected NavigateToAchievementsMsg, got %T", msg)
 }
 
 func TestWorldPrestige_EnterRequestsConfirm(t *testing.T) {

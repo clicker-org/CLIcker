@@ -8,6 +8,9 @@ type NavigateToOverviewMsg struct{}
 // NavigateToDashboardMsg navigates to the dashboard screen.
 type NavigateToDashboardMsg struct{}
 
+// NavigateToAchievementsMsg navigates to the global achievements screen.
+type NavigateToAchievementsMsg struct{}
+
 // NavigateToWorldMsg navigates to a specific world screen.
 type NavigateToWorldMsg struct{ WorldID string }
 

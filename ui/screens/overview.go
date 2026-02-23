@@ -59,6 +59,8 @@ func (m OverviewModel) Update(msg tea.Msg) (OverviewModel, tea.Cmd) {
 		switch msg.String() {
 		case "d", "D":
 			return m, func() tea.Msg { return messages.NavigateToDashboardMsg{} }
+		case "a", "A":
+			return m, func() tea.Msg { return messages.NavigateToAchievementsMsg{} }
 		}
 	case messages.NavConfirmMsg:
 		id := m.gmap.FocusedWorldID(worlds)
@@ -133,7 +135,7 @@ func (m OverviewModel) View() string {
 		Foreground(lipgloss.Color(m.t.CoinColor())).
 		Render(statsLine)
 
-	helpLine := "  [Enter] Enter World   [D] Dashboard   [Q] Quit   [?] Help"
+	helpLine := "  [Enter] Enter World   [D] Dashboard   [A] Achievements   [Q] Quit   [?] Help"
 	styledHelp := lipgloss.NewStyle().
 		Width(m.width).
 		Background(bg).

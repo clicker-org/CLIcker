@@ -23,11 +23,10 @@ const (
 	ModalNone         ModalType = iota
 	ModalShop                   // focusedHeader index 1
 	ModalPrestige               // focusedHeader index 2
-	ModalAchievements           // focusedHeader index 3
 )
 
 // headerCount is the number of items in the top header bar.
-const headerCount = 4
+const headerCount = 3
 
 // worldConfirmType identifies which action a confirm dialog is asking about.
 type worldConfirmType int
@@ -39,7 +38,7 @@ const (
 )
 
 // WorldModel hosts the world screen. The click view is always the background;
-// Shop, Prestige, and Achievements open as modal overlays on top.
+// Shop and Prestige open as modal overlays on top.
 type WorldModel struct {
 	t       theme.Theme
 	eng     *engine.Engine
@@ -49,9 +48,8 @@ type WorldModel struct {
 	clickTab    tabs.ClickTabModel
 	shopTab     tabs.ShopTabModel
 	prestigeTab tabs.PrestigeTabModel
-	achTab      tabs.AchievementsTabModel
 
-	// focusedHeader is the header item the arrow-key cursor sits on (0–3).
+	// focusedHeader is the header item the arrow-key cursor sits on (0–2).
 	// activeModal is the modal currently displayed; ModalNone means no overlay.
 	focusedHeader int
 	activeModal   ModalType
@@ -238,8 +236,7 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 			return m, nil
 
 		case "a", "A":
-			m = m.toggleModalHotkey(ModalAchievements, 3)
-			return m, nil
+			return m, func() tea.Msg { return messages.NavigateToAchievementsMsg{} }
 
 		case "tab":
 			if m.activeModal == ModalNone {
@@ -329,14 +326,6 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 						cmds = append(cmds, c)
 					}
 				}
-			} else {
-				// For Achievements (and any other non-interactive modal content),
-				// route nav input to the outer modal's [Esc] button.
-				newModal, c := m.modal.Update(msg)
-				m.modal = newModal
-				if c != nil {
-					cmds = append(cmds, c)
-				}
 			}
 			return m, tea.Batch(cmds...)
 		}
@@ -349,9 +338,6 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 				m.modal = components.NewTabModal(m.t)
 			case 2:
 				m.activeModal = ModalPrestige
-				m.modal = components.NewTabModal(m.t)
-			case 3:
-				m.activeModal = ModalAchievements
 				m.modal = components.NewTabModal(m.t)
 			}
 			return m, nil
@@ -389,14 +375,6 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 		if c != nil {
 			cmds = append(cmds, c)
 		}
-	case ModalAchievements:
-		newModel, c := m.achTab.Update(msg)
-		if at, ok := newModel.(tabs.AchievementsTabModel); ok {
-			m.achTab = at
-		}
-		if c != nil {
-			cmds = append(cmds, c)
-		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -415,7 +393,6 @@ func (m WorldModel) View() string {
 		{"[C]lick", ModalNone},
 		{"[S]hop", ModalShop},
 		{"[P]restige", ModalPrestige},
-		{"[A]chievements", ModalAchievements},
 	}
 
 	headerParts := make([]string, len(items))
@@ -463,8 +440,6 @@ func (m WorldModel) View() string {
 			title, content = "SHOP", m.shopTab.View()
 		case ModalPrestige:
 			title, content = "PRESTIGE", m.prestigeTab.View()
-		case ModalAchievements:
-			title, content = "ACHIEVEMENTS", m.achTab.View()
 		}
 		// Overlay the modal on top of the live click-tab background.
 		modalView := m.modal.View(title, content, bgContent, m.width, contentHeight)
