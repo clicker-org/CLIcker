@@ -105,6 +105,10 @@ func (m ClickTabModel) View() string {
 	bg := lipgloss.Color(m.t.Background())
 	coinFg := lipgloss.Color(m.t.CoinColor())
 	dimFg := lipgloss.Color(m.t.DimText())
+	coinSymbol := m.worldID
+	if w, ok := m.eng.WorldReg.Get(m.worldID); ok {
+		coinSymbol = w.CoinSymbol()
+	}
 
 	// Click box width: half the terminal, minimum 28 chars.
 	boxWidth := m.width / 2
@@ -124,7 +128,7 @@ func (m ClickTabModel) View() string {
 	var floatLine string
 	if m.coinFloat && m.lastCoinGain > 0 {
 		floatLine = lipgloss.NewStyle().Foreground(coinFg).Render(
-			fmt.Sprintf("+%.1f TC", m.lastCoinGain))
+			fmt.Sprintf("+%.1f %s", m.lastCoinGain, coinSymbol))
 	}
 
 	// Stats.
@@ -134,7 +138,7 @@ func (m ClickTabModel) View() string {
 		cps = ws.CPS
 	}
 	statsLine := lipgloss.NewStyle().Foreground(dimFg).Render(
-		fmt.Sprintf("Click Power: %.2f TC/click    CPS: %.2f", clickPower, cps))
+		fmt.Sprintf("Click Power: %.2f %s/click    CPS: %.2f", clickPower, coinSymbol, cps))
 
 	// Center block: click box + coin float placeholder + blank line + stats.
 	centerBlock := strings.Join([]string{clickBox, floatLine, "", statsLine}, "\n")
