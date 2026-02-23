@@ -303,6 +303,14 @@ func (g GalaxyMap) renderGalaxy(worlds []WorldVisual, t theme.Theme) string {
 		}
 		c.set(p.x, p.y, marker)
 		label := shortName(worlds[i].Name, 12)
+		if i == g.FocusedIndex {
+			label = "[[ " + strings.ToUpper(shortName(worlds[i].Name, 10)) + " ]]"
+			// Selection halo to make focus obvious even when labels overlap.
+			c.set(p.x-1, p.y, '<')
+			c.set(p.x+1, p.y, '>')
+			c.set(p.x, p.y-1, '^')
+			c.set(p.x, p.y+1, 'v')
+		}
 		offset := -len([]rune(label)) / 2
 		if p.y <= mapH/2 {
 			c.drawText(p.x+offset, p.y-1, label)
@@ -335,6 +343,7 @@ func (g GalaxyMap) renderGalaxy(worlds []WorldVisual, t theme.Theme) string {
 		BorderForeground(lipgloss.Color(accent)).
 		Padding(0, 1).
 		Render(strings.Join([]string{
+			cardDim.Render("SELECTED WORLD"),
 			cardTitle,
 			cardDim.Render(fmt.Sprintf("Completion: %.1f%%", w.Completion)),
 			cardDim.Render(fmt.Sprintf("CPS: %.2f   Prestige: %d", w.CPS, w.Prestige)),
