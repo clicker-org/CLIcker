@@ -109,7 +109,10 @@ func overlayOnBackground(box, bgContent, bgColor string, width, height int) stri
 
 // renderBox builds the raw bordered box string at the given dimensions.
 func (m BaseModal) renderBox(title, content string, boxWidth, boxHeight int) string {
-	const borderColor = "#ffffff"
+	borderColor := m.t.BorderColor()
+	if borderColor == "" {
+		borderColor = "#ffffff"
+	}
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor))
 
 	innerWidth := boxWidth - 2
