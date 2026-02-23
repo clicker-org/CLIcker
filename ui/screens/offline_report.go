@@ -18,15 +18,17 @@ type OfflineReportModel struct {
 	result   offline.Result
 	visible  bool
 	boxStyle lipgloss.Style
+	worldReg *world.WorldRegistry
 }
 
 // NewOfflineReportModel creates an OfflineReportModel. The report is shown
 // only if the player was away for at least offline.MinReportDuration.
-func NewOfflineReportModel(t theme.Theme, result offline.Result) OfflineReportModel {
+func NewOfflineReportModel(t theme.Theme, result offline.Result, worldReg *world.WorldRegistry) OfflineReportModel {
 	return OfflineReportModel{
-		t:       t,
-		result:  result,
-		visible: result.Duration >= offline.MinReportDuration,
+		t:        t,
+		result:   result,
+		visible:  result.Duration >= offline.MinReportDuration,
+		worldReg: worldReg,
 		boxStyle: lipgloss.NewStyle().
 			Border(lipgloss.DoubleBorder()).
 			BorderForeground(lipgloss.Color(t.AccentColor())).
@@ -72,8 +74,10 @@ func (m OfflineReportModel) View() string {
 		sb.WriteString(fmt.Sprintf("  While offline in %s:\n", m.result.WorldID))
 		if m.result.WorldCoins > 0 {
 			coinName := m.result.WorldID
-			if w, ok := world.DefaultRegistry.Get(m.result.WorldID); ok {
-				coinName = w.CoinName()
+			if m.worldReg != nil {
+				if w, ok := m.worldReg.Get(m.result.WorldID); ok {
+					coinName = w.CoinName()
+				}
 			}
 			sb.WriteString(fmt.Sprintf("  + %.0f %s\n\n", m.result.WorldCoins, coinName))
 		} else {

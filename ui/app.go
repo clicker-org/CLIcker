@@ -72,7 +72,7 @@ func NewApp(
 		dashboard:     screens.NewDashboardModel(t, &eng.State, width, height),
 		offlineReport: offlineReport,
 		notification:  components.NewNotification(t),
-		statusBar:     components.NewStatusBar(t, width),
+		statusBar:     components.NewStatusBar(t, width, eng.WorldReg),
 		quit:          newQuitDialog(t),
 	}
 

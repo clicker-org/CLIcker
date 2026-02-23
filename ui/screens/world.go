@@ -90,7 +90,7 @@ func NewWorldModel(
 		clickTab:     tabs.NewClickTab(eng, worldID, t, animReg, animKey, width, contentH),
 		shopTab:      tabs.NewShopTab(eng, worldID, t, width, contentH),
 		prestigeTab:  tabs.NewPrestigeTab(eng, worldID, t, width, contentH),
-		statusBar:    components.NewStatusBar(t, width),
+		statusBar:    components.NewStatusBar(t, width, eng.WorldReg),
 		width:        width,
 		height:       height,
 		activeModal:  ModalNone,

@@ -83,7 +83,7 @@ func main() {
 	}
 
 	// build offline report.
-	offlineReport := screens.NewOfflineReportModel(activeTheme, offlineResult)
+	offlineReport := screens.NewOfflineReportModel(activeTheme, offlineResult, worldReg)
 
 	// build and run the app.
 	w, h, err := term.GetSize(os.Stdout.Fd())

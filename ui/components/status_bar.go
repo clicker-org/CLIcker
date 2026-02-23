@@ -12,19 +12,21 @@ import (
 
 // StatusBar is the always-visible bottom status bar.
 type StatusBar struct {
-	style lipgloss.Style
-	width int
+	style    lipgloss.Style
+	width    int
+	worldReg *world.WorldRegistry
 }
 
 // NewStatusBar creates a StatusBar with the given theme and width.
-func NewStatusBar(t theme.Theme, width int) StatusBar {
+func NewStatusBar(t theme.Theme, width int, worldReg *world.WorldRegistry) StatusBar {
 	return StatusBar{
 		style: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(t.PrimaryText())).
 			Background(lipgloss.Color(t.Background())).
 			Width(width).
 			Padding(0, 1),
-		width: width,
+		width:    width,
+		worldReg: worldReg,
 	}
 }
 
@@ -45,8 +47,10 @@ func (s StatusBar) View(gs gamestate.GameState, activeWorldID string, ws *world.
 		))
 	}
 	coinName := activeWorldID
-	if w, ok := world.DefaultRegistry.Get(activeWorldID); ok {
-		coinName = w.CoinName()
+	if s.worldReg != nil {
+		if w, ok := s.worldReg.Get(activeWorldID); ok {
+			coinName = w.CoinName()
+		}
 	}
 	return s.style.Render(fmt.Sprintf(
 		"%s | %s: %s | CPS: %.1f | Prestige: %d | LVL: %d XP: %d",
