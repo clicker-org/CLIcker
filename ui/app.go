@@ -18,7 +18,7 @@ import (
 type TickMsg time.Time
 
 func tickCmd() tea.Cmd {
-	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Duration(engine.TickIntervalMs)*time.Millisecond, func(t time.Time) tea.Msg {
 		return TickMsg(t)
 	})
 }
