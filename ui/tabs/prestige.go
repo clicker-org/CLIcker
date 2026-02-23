@@ -75,12 +75,15 @@ func (m PrestigeTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var barCmd tea.Cmd
 	m.progressBar, barCmd = m.progressBar.Update(msg)
 
+	if _, ok := msg.(messages.NavConfirmMsg); ok {
+		if m.eng.CanPrestige(m.worldID) {
+			return m, func() tea.Msg { return messages.PrestigeConfirmRequestedMsg{} }
+		}
+		return m, barCmd
+	}
+
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
-		case "p", "P":
-			if m.eng.CanPrestige(m.worldID) {
-				return m, func() tea.Msg { return messages.PrestigeConfirmRequestedMsg{} }
-			}
 		case "e", "E":
 			if m.eng.CanExchangeBoost(m.worldID) {
 				return m, func() tea.Msg { return messages.ExchangeBoostConfirmRequestedMsg{} }
@@ -171,9 +174,9 @@ func (m PrestigeTabModel) View() string {
 
 	// Prestige action hint.
 	if canPrestige {
-		sb.WriteString("  " + warnSt.Bold(true).Render("[P]") + primarySt.Render(" Prestige (resets world)") + "\n")
+		sb.WriteString("  " + warnSt.Bold(true).Render("[Enter]") + primarySt.Render(" Prestige (resets world)") + "\n")
 	} else {
-		sb.WriteString("  " + dimSt.Render("[P] Prestige (not yet available)") + "\n")
+		sb.WriteString("  " + dimSt.Render("[Enter] Prestige (not yet available)") + "\n")
 	}
 
 	sb.WriteString("\n")

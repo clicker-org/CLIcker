@@ -71,6 +71,20 @@ type WorldModel struct {
 	dimStyle     lipgloss.Style
 }
 
+// toggleModalHotkey applies consistent open/close behavior for tab hotkeys.
+// Pressing the hotkey of an open modal closes it; otherwise it opens/switches to it.
+func (m WorldModel) toggleModalHotkey(target ModalType, headerIdx int) WorldModel {
+	if m.activeModal == target {
+		m.activeModal = ModalNone
+		m.focusedHeader = 0
+		return m
+	}
+	m.activeModal = target
+	m.focusedHeader = headerIdx
+	m.modal = components.NewTabModal(m.t)
+	return m
+}
+
 // NewWorldModel creates a WorldModel for the given world.
 func NewWorldModel(
 	t theme.Theme,
@@ -205,31 +219,11 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 			return m, nil
 
 		case "s", "S":
-			if m.activeModal == ModalNone {
-				m.activeModal = ModalShop
-				m.focusedHeader = 1
-				m.modal = components.NewTabModal(m.t)
-			} else if m.activeModal == ModalShop {
-				m.activeModal = ModalNone
-				m.focusedHeader = 0
-			}
+			m = m.toggleModalHotkey(ModalShop, 1)
 			return m, nil
 
 		case "p", "P":
-			if m.activeModal == ModalNone {
-				// Open the prestige modal.
-				m.activeModal = ModalPrestige
-				m.focusedHeader = 2
-				m.modal = components.NewTabModal(m.t)
-				return m, nil
-			} else if m.activeModal == ModalPrestige {
-				// Forward P to the prestige tab (may emit PrestigeConfirmRequestedMsg).
-				newModel, c := m.prestigeTab.Update(msg)
-				if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
-					m.prestigeTab = pt
-				}
-				return m, c
-			}
+			m = m.toggleModalHotkey(ModalPrestige, 2)
 			return m, nil
 
 		case "e", "E":
@@ -244,14 +238,7 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 			return m, nil
 
 		case "a", "A":
-			if m.activeModal == ModalNone {
-				m.activeModal = ModalAchievements
-				m.focusedHeader = 3
-				m.modal = components.NewTabModal(m.t)
-			} else if m.activeModal == ModalAchievements {
-				m.activeModal = ModalNone
-				m.focusedHeader = 0
-			}
+			m = m.toggleModalHotkey(ModalAchievements, 3)
 			return m, nil
 
 		case "tab":
@@ -316,9 +303,26 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 				if c != nil {
 					cmds = append(cmds, c)
 				}
+			} else if m.activeModal == ModalPrestige {
+				// Enter confirms prestige from the modal content; arrows still control [Esc] focus.
+				if _, isConfirm := msg.(messages.NavConfirmMsg); isConfirm {
+					newModel, c := m.prestigeTab.Update(msg)
+					if pt, ok := newModel.(tabs.PrestigeTabModel); ok {
+						m.prestigeTab = pt
+					}
+					if c != nil {
+						cmds = append(cmds, c)
+					}
+				} else {
+					newModal, c := m.modal.Update(msg)
+					m.modal = newModal
+					if c != nil {
+						cmds = append(cmds, c)
+					}
+				}
 			} else {
-				// For Prestige, Achievements, and any other modal: route to the
-				// outer modal's [Esc] button.
+				// For Achievements (and any other non-interactive modal content),
+				// route nav input to the outer modal's [Esc] button.
 				newModal, c := m.modal.Update(msg)
 				m.modal = newModal
 				if c != nil {
