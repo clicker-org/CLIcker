@@ -43,6 +43,7 @@ desktop.ini
 
 # AI assistant files
 CLAUDE.md
+AGENTS.md
 .claude/
 .cursor/
 .copilot/
