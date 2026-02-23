@@ -15,6 +15,8 @@ import (
 type clickFlashEndMsg struct{}
 type coinFloatEndMsg struct{}
 
+const spaceRepeatBlockWindow = 120 * time.Millisecond
+
 // ClickTabModel is the [C]lick tab content model.
 type ClickTabModel struct {
 	eng          *engine.Engine
@@ -25,6 +27,8 @@ type ClickTabModel struct {
 	clickFlash   bool
 	coinFloat    bool
 	lastCoinGain float64
+	lastSpaceAt  time.Time
+	now          func() time.Time
 	anim         background.BackgroundAnimation
 	borderStyle  lipgloss.Style
 	flashStyle   lipgloss.Style
@@ -49,6 +53,7 @@ func NewClickTab(
 		t:       t,
 		width:   width,
 		height:  height,
+		now:     time.Now,
 		anim:    anim,
 		borderStyle: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -79,6 +84,14 @@ func (m ClickTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.String() == " " {
+			now := m.now()
+			if !m.lastSpaceAt.IsZero() && now.Sub(m.lastSpaceAt) < spaceRepeatBlockWindow {
+				// Continuously holding space emits a rapid stream of repeat events.
+				// Refresh the timestamp so a genuine pause is required before the next click.
+				m.lastSpaceAt = now
+				return m, nil
+			}
+			m.lastSpaceAt = now
 			gained := m.eng.HandleClick(m.worldID)
 			m.lastCoinGain = gained
 			m.clickFlash = true
