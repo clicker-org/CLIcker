@@ -252,6 +252,15 @@ func (m WorldModel) Update(msg tea.Msg) (WorldModel, tea.Cmd) {
 				m.focusedHeader = (m.focusedHeader + headerCount - 1) % headerCount
 			}
 			return m, nil
+
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+			if m.activeModal == ModalShop {
+				newModel, c := m.shopTab.Update(msg)
+				if st, ok := newModel.(tabs.ShopTabModel); ok {
+					m.shopTab = st
+				}
+				return m, c
+			}
 		}
 		// Block all other key input from reaching tabs when a modal is open.
 		if m.activeModal != ModalNone {

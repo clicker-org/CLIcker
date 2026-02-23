@@ -71,7 +71,7 @@ func (m ShopTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	visCount := m.visibleCount()
 
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case messages.NavUpMsg:
 		if m.cursor > 0 {
 			m.cursor--
@@ -90,6 +90,21 @@ func (m ShopTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.cursor <= lastUnlocked {
 			b := items[m.cursor]
 			m.eng.PurchaseBuyOn(m.worldID, b.ID())
+		}
+	case tea.KeyMsg:
+		if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 {
+			r := msg.Runes[0]
+			if r >= '1' && r <= '9' {
+				target := int(r - '1')
+				if target <= lastUnlocked && target < len(items) {
+					m.cursor = target
+					if m.cursor < m.scroll {
+						m.scroll = m.cursor
+					} else if m.cursor >= m.scroll+visCount {
+						m.scroll = m.cursor - visCount + 1
+					}
+				}
+			}
 		}
 	}
 
@@ -160,7 +175,7 @@ func (m ShopTabModel) View() string {
 		selected := i == m.cursor
 		canAfford := ws.Coins >= cost
 
-		sb.WriteString(m.renderCard(b, cost, count, coinSymbol, locked, selected, canAfford, cardContentW))
+		sb.WriteString(m.renderCard(i, b, cost, count, coinSymbol, locked, selected, canAfford, cardContentW))
 		if i < end-1 {
 			sb.WriteString("\n")
 		}
@@ -178,6 +193,7 @@ func (m ShopTabModel) View() string {
 
 // renderCard builds the 5-line bordered card string for a single buy-on.
 func (m ShopTabModel) renderCard(
+	idx int,
 	b upgrade.BuyOn,
 	cost float64,
 	count int,
@@ -211,7 +227,11 @@ func (m ShopTabModel) renderCard(
 	}
 
 	// ── Row 1: Name (left) │ Own: N (unlocked) or LVL: N (locked) (right) ─
-	nameText := shopTruncStr(b.Name(), leftW-1) // reserve 1 for the leading space
+	shortcut := ""
+	if idx < 9 {
+		shortcut = fmt.Sprintf("[%d] ", idx+1)
+	}
+	nameText := shopTruncStr(b.Name(), leftW-1-len(shortcut)) // reserve 1 for leading space
 	var nameStyle lipgloss.Style
 	switch {
 	case locked:
@@ -222,6 +242,7 @@ func (m ShopTabModel) renderCard(
 		nameStyle = lipgloss.NewStyle().Foreground(primary).Bold(true)
 	}
 	nameRender := nameStyle.Render(nameText)
+	shortcutRender := lipgloss.NewStyle().Foreground(dim).Render(shortcut)
 
 	var row1Right string
 	if locked {
@@ -232,7 +253,7 @@ func (m ShopTabModel) renderCard(
 		row1Right = lipgloss.NewStyle().Foreground(dim).Render(ownText)
 	}
 
-	row1 := shopPadVisual(" "+nameRender, leftW) + shopPadVisual(row1Right, rightW)
+	row1 := shopPadVisual(" "+shortcutRender+nameRender, leftW) + shopPadVisual(row1Right, rightW)
 
 	// ── Row 2: Description (left) │ +X CPS (right) ──────────────────
 	descText := shopTruncStr(b.Description(), leftW-1)

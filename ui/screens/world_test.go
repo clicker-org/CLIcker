@@ -65,6 +65,29 @@ func TestWorldPrestige_EnterRequestsConfirm(t *testing.T) {
 	assert.True(t, ok, "expected PrestigeConfirmRequestedMsg, got %T", msg)
 }
 
+func TestWorldShop_NumberHotkeySelectsIndexedItem(t *testing.T) {
+	m := newTestWorldModel(t)
+	ws := m.eng.State.Worlds["terra"]
+	ws.Coins = 1_000_000_000
+	ws.TotalCoinsEarned = 1_000_000_000
+	m.eng.State.Player.Level = 100
+
+	items := m.eng.UpgradeReg["terra"].ListBuyOns()
+	require.GreaterOrEqual(t, len(items), 2, "terra needs at least 2 buy-ons for index-hotkey test")
+
+	firstID := items[0].ID()
+	secondID := items[1].ID()
+
+	m, _ = m.Update(runeKeyMsg('s'))
+	require.Equal(t, ModalShop, m.activeModal)
+
+	m, _ = m.Update(runeKeyMsg('2'))
+	m, _ = m.Update(messages.NavConfirmMsg{})
+
+	assert.Equal(t, 0, ws.BuyOnCounts[firstID], "first item should remain unpurchased")
+	assert.Equal(t, 1, ws.BuyOnCounts[secondID], "second item should be purchased via [2] then Enter")
+}
+
 func newTestWorldModel(t *testing.T) WorldModel {
 	t.Helper()
 	gs := gamestate.NewGameState()
