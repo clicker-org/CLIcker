@@ -73,7 +73,7 @@ func main() {
 	gs := save.GameStateFromSave(sf, worldReg)
 
 	// compute and apply offline income.
-	offlineResult := offline.Apply(sf.LastScreen, sf.LastWorldID, sf.SavedAt, &gs)
+	offlineResult := offline.Apply(sf.LastScreen, sf.LastWorldID, sf.SavedAt, &gs, worldReg)
 
 	// create engine.
 	eng := engine.New(gs, worldReg, achievReg)

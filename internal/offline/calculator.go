@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/clicker-org/clicker/internal/gamestate"
+	"github.com/clicker-org/clicker/internal/world"
 )
 
 // Global offline income constants. These values are defined here (not in world
@@ -36,7 +37,11 @@ type Result struct {
 // Apply computes offline income based on how long the game was closed and
 // where the player was when they quit, then applies the earned amounts
 // directly to gs. Returns the Result for display in the offline report.
-func Apply(lastScreen, lastWorldID string, savedAt time.Time, gs *gamestate.GameState) Result {
+//
+// For world-screen sessions, world-specific offline settings are sourced from
+// worldReg. If a world is missing from the registry, engine-level defaults are
+// used as a fallback.
+func Apply(lastScreen, lastWorldID string, savedAt time.Time, gs *gamestate.GameState, worldReg *world.WorldRegistry) Result {
 	if savedAt.IsZero() {
 		return Result{}
 	}
@@ -52,7 +57,19 @@ func Apply(lastScreen, lastWorldID string, savedAt time.Time, gs *gamestate.Game
 
 	if lastScreen == "world" && lastWorldID != "" {
 		if ws, ok := gs.Worlds[lastWorldID]; ok {
-			coins := CalculateOfflineIncome(ws.CPS, WorldOfflinePct, elapsed, WorldOfflineCapHours)
+			offlinePct := WorldOfflinePct
+			capHours := WorldOfflineCapHours
+			if worldReg != nil {
+				if w, ok := worldReg.Get(lastWorldID); ok {
+					if p := w.OfflinePercentage(); p > 0 {
+						offlinePct = p
+					}
+					if baseCap := w.OfflineCapHours(); baseCap > 0 {
+						capHours = world.EffectiveOfflineCapHours(ws, baseCap)
+					}
+				}
+			}
+			coins := CalculateOfflineIncome(ws.CPS, offlinePct, elapsed, capHours)
 			if coins > 0 {
 				ws.Coins += coins
 				ws.TotalCoinsEarned += coins
