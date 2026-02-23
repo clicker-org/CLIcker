@@ -1,6 +1,11 @@
 package engine
 
-import "github.com/clicker-org/clicker/internal/achievement"
+import (
+	"math"
+
+	"github.com/clicker-org/clicker/internal/achievement"
+	"github.com/clicker-org/clicker/internal/player"
+)
 
 // EngineEventType identifies the kind of engine event.
 type EngineEventType string
@@ -54,6 +59,27 @@ func (e *Engine) Tick(dt float64) []EngineEvent {
 		newlyUnlocked := achievement.CheckAchievements(e.State, e.AchievReg, e.Earned)
 		for _, id := range newlyUnlocked {
 			e.Earned[id] = true
+			prevLevel := e.State.Player.Level
+			if a, ok := e.AchievReg.Get(id); ok {
+				if a.XPGrant > 0 {
+					player.AddXP(&e.State.Player, a.XPGrant)
+				}
+				if a.Reward != nil {
+					switch a.Reward.Type {
+					case achievement.RewardTypeXP:
+						player.AddXP(&e.State.Player, int(math.Round(a.Reward.Value)))
+					case achievement.RewardTypeGeneralCoins:
+						e.State.Player.GeneralCoins += a.Reward.Value
+						e.State.Player.LifetimeGeneralCoins += a.Reward.Value
+					}
+				}
+			}
+			if e.State.Player.Level > prevLevel {
+				events = append(events, EngineEvent{
+					Type:     EventLevelUp,
+					NewLevel: e.State.Player.Level,
+				})
+			}
 			events = append(events, EngineEvent{
 				Type:          EventAchievementUnlocked,
 				AchievementID: id,

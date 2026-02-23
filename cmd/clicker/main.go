@@ -56,6 +56,7 @@ func main() {
 	// (triggered by the blank import of internal/world/worlds above).
 	worldReg := world.DefaultRegistry
 	achievReg := achievement.NewAchievementRegistry()
+	achievement.RegisterDefaults(achievReg)
 
 	// set up theme registry.
 	themeReg := theme.NewThemeRegistry()
