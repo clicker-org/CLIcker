@@ -1,0 +1,132 @@
+id = "aqua"
+name = "Aqua"
+coin_name = "Aqua-Coins"
+coin_symbol = "AC"
+accent_color = "#38bdf8"
+ambient_animation = "bubbles"
+base_exchange_rate = 0.0009
+offline_percentage = 0.10
+offline_cap_hours = 8.0
+
+[[buy_ons]]
+id = "bubble_collector"
+name = "Bubble Collector"
+description = "Collects dense mineral bubbles from the shallow reefs."
+base_cost = 60.0
+cost_scaling = 1.15
+base_cps = 0.12
+level_requirement = 0
+
+[[buy_ons]]
+id = "coral_drone"
+name = "Coral Drone"
+description = "Automated drone that harvests resources around coral belts."
+base_cost = 620.0
+cost_scaling = 1.15
+base_cps = 1.15
+level_requirement = 0
+
+[[buy_ons]]
+id = "tidal_refinery"
+name = "Tidal Refinery"
+description = "Refines submerged ore using high-pressure tidal systems."
+base_cost = 6200.0
+cost_scaling = 1.15
+base_cps = 8.5
+level_requirement = 2
+
+[[buy_ons]]
+id = "abyss_harvester"
+name = "Abyss Harvester"
+description = "Deep-sea harvester extracting rare resources from trenches."
+base_cost = 62000.0
+cost_scaling = 1.15
+base_cps = 50.0
+level_requirement = 5
+
+[[buy_ons]]
+id = "ocean_core"
+name = "Ocean Core Reactor"
+description = "Massive reactor that converts oceanic pressure into coin flow."
+base_cost = 620000.0
+cost_scaling = 1.15
+base_cps = 275.0
+level_requirement = 10
+
+[[buy_on_upgrades]]
+id = "reinforced_nets"
+name = "Reinforced Nets"
+description = "Doubles Bubble Collector output."
+target_buy_on = "bubble_collector"
+multiplier = 2.0
+cost = 600.0
+level_requirement = 0
+
+[[buy_on_upgrades]]
+id = "drone_swarm"
+name = "Drone Swarm"
+description = "Doubles Coral Drone output via synchronized swarms."
+target_buy_on = "coral_drone"
+multiplier = 2.0
+cost = 6200.0
+level_requirement = 0
+
+[prestige_threshold]
+type = "coins_earned"
+value = 1000000.0
+
+[[completion_milestones]]
+id = "first_click"
+description = "Click for the first time"
+type = "clicks"
+value = 1.0
+weight = 0.05
+
+[[completion_milestones]]
+id = "coins_1k"
+description = "Earn 1,000 Aqua-Coins"
+type = "coins_earned"
+value = 1000.0
+weight = 0.05
+
+[[completion_milestones]]
+id = "coins_10k"
+description = "Earn 10,000 Aqua-Coins"
+type = "coins_earned"
+value = 10000.0
+weight = 0.10
+
+[[completion_milestones]]
+id = "coins_100k"
+description = "Earn 100,000 Aqua-Coins"
+type = "coins_earned"
+value = 100000.0
+weight = 0.10
+
+[[completion_milestones]]
+id = "coins_1m"
+description = "Earn 1,000,000 Aqua-Coins"
+type = "coins_earned"
+value = 1000000.0
+weight = 0.15
+
+[[completion_milestones]]
+id = "buy_ons_variety"
+description = "Own at least one of every buy-on"
+type = "buy_ons_variety"
+value = 5.0
+weight = 0.15
+
+[[completion_milestones]]
+id = "first_prestige"
+description = "Prestige Aqua for the first time"
+type = "prestige_count"
+value = 1.0
+weight = 0.20
+
+[[completion_milestones]]
+id = "prestige_3"
+description = "Prestige Aqua three times"
+type = "prestige_count"
+value = 3.0
+weight = 0.20

@@ -8,3 +8,7 @@ import _ "embed"
 // TerraToml is the embedded configs/worlds/terra.toml configuration.
 //go:embed worlds/terra.toml
 var TerraToml []byte
+
+// AquaToml is the embedded configs/worlds/aqua.toml configuration.
+//go:embed worlds/aqua.toml
+var AquaToml []byte
