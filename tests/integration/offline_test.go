@@ -108,7 +108,7 @@ func TestOfflineApply_WithEarnedCPS_CorrectlyAccumulates(t *testing.T) {
 	// Phase 1: earn real CPS through a purchase.
 	eng := newTestEngine(t)
 	eng.State.Worlds["terra"].Coins = 10_000.0
-	_, ok := eng.PurchaseBuyOn("terra", "auto_miner", 0)
+	_, ok := eng.PurchaseBuyOn("terra", "auto_miner")
 	require.True(t, ok)
 	cps := eng.State.Worlds["terra"].CPS
 	require.Greater(t, cps, 0.0, "purchase should produce non-zero CPS")

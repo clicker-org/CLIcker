@@ -13,7 +13,7 @@ func TestClick_AccumulatesCoinsAndStats(t *testing.T) {
 	eng := newTestEngine(t)
 	before := eng.State.Worlds["terra"].Coins
 
-	earned := eng.HandleClick("terra", 1.0)
+	earned := eng.HandleClick("terra")
 
 	assert.Greater(t, earned, 0.0)
 	assert.InDelta(t, before+earned, eng.State.Worlds["terra"].Coins, 0.001)
@@ -24,18 +24,17 @@ func TestClick_AccumulatesCoinsAndStats(t *testing.T) {
 
 func TestClickPower_ScalesWithPrestigeMultiplier(t *testing.T) {
 	eng := newTestEngine(t)
-	base := eng.ClickPower("terra", 1.0)
+	base := eng.ClickPower("terra")
 
 	eng.State.Worlds["terra"].PrestigeMultiplier = 2.0
 
-	assert.InDelta(t, base*2.0, eng.ClickPower("terra", 1.0), 0.001)
+	assert.InDelta(t, base*2.0, eng.ClickPower("terra"), 0.001)
 }
 
-func TestClickPower_ScalesWithGlobalMultiplier(t *testing.T) {
+func TestClickPower_UsesEngineOwnedGlobalMultiplier(t *testing.T) {
 	eng := newTestEngine(t)
-	base := eng.ClickPower("terra", 1.0)
-
-	assert.InDelta(t, base*3.0, eng.ClickPower("terra", 3.0), 0.001)
+	base := eng.ClickPower("terra")
+	assert.InDelta(t, base, eng.ClickPower("terra"), 0.001)
 }
 
 func TestBuyOnPurchase_UpdatesCPS(t *testing.T) {
@@ -43,7 +42,7 @@ func TestBuyOnPurchase_UpdatesCPS(t *testing.T) {
 	eng.State.Worlds["terra"].Coins = 1000.0
 	cpsBefore := eng.State.Worlds["terra"].CPS
 
-	cost, ok := eng.PurchaseBuyOn("terra", "auto_miner", 0)
+	cost, ok := eng.PurchaseBuyOn("terra", "auto_miner")
 
 	assert.True(t, ok, "purchase should succeed with enough coins")
 	assert.Greater(t, cost, 0.0)
@@ -56,7 +55,7 @@ func TestBuyOnPurchase_FailsOnInsufficientCoins(t *testing.T) {
 	eng := newTestEngine(t)
 	eng.State.Worlds["terra"].Coins = 0
 
-	_, ok := eng.PurchaseBuyOn("terra", "auto_miner", 0)
+	_, ok := eng.PurchaseBuyOn("terra", "auto_miner")
 
 	assert.False(t, ok, "purchase should fail with no coins")
 	assert.Equal(t, 0, eng.State.Worlds["terra"].BuyOnCounts["auto_miner"])
@@ -66,10 +65,10 @@ func TestBuyOnPurchase_CostScalesWithCount(t *testing.T) {
 	eng := newTestEngine(t)
 	eng.State.Worlds["terra"].Coins = 10_000.0
 
-	cost1, ok1 := eng.PurchaseBuyOn("terra", "auto_miner", 0)
+	cost1, ok1 := eng.PurchaseBuyOn("terra", "auto_miner")
 	require.True(t, ok1)
 
-	cost2, ok2 := eng.PurchaseBuyOn("terra", "auto_miner", 0)
+	cost2, ok2 := eng.PurchaseBuyOn("terra", "auto_miner")
 	require.True(t, ok2)
 
 	assert.Greater(t, cost2, cost1, "second purchase should cost more than first")

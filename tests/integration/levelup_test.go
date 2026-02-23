@@ -17,7 +17,7 @@ func TestLevelUp_UnlocksGatedBuyOn(t *testing.T) {
 	eng.State.Worlds["terra"].Coins = 1_000_000.0
 
 	// Smelter requires level 2. Player starts at level 1.
-	_, ok := eng.PurchaseBuyOn("terra", "smelter", eng.State.Player.Level)
+	_, ok := eng.PurchaseBuyOn("terra", "smelter")
 	assert.False(t, ok, "smelter should be blocked at level 1")
 
 	// Grant XP directly to the engine's player state — simulating what the
@@ -27,7 +27,7 @@ func TestLevelUp_UnlocksGatedBuyOn(t *testing.T) {
 
 	// The engine reads eng.State.Player.Level in PurchaseBuyOn — it should now
 	// see level 2 and allow the purchase.
-	_, ok = eng.PurchaseBuyOn("terra", "smelter", eng.State.Player.Level)
+	_, ok = eng.PurchaseBuyOn("terra", "smelter")
 	assert.True(t, ok, "smelter should be unlocked after level-up")
 	assert.Equal(t, 1, eng.State.Worlds["terra"].BuyOnCounts["smelter"])
 }
@@ -42,13 +42,13 @@ func TestLevelUp_XPAccumulates_ThenUnlocks(t *testing.T) {
 	// 60 XP — not enough for level 2 (100 needed). Gate should still hold.
 	player.AddXP(&eng.State.Player, 60)
 	assert.Equal(t, 1, eng.State.Player.Level)
-	_, ok := eng.PurchaseBuyOn("terra", "smelter", eng.State.Player.Level)
+	_, ok := eng.PurchaseBuyOn("terra", "smelter")
 	assert.False(t, ok, "still blocked: only 60 of 100 XP accumulated")
 
 	// Another 60 XP — total 120, crosses the level 2 threshold.
 	player.AddXP(&eng.State.Player, 60)
 	assert.Equal(t, 2, eng.State.Player.Level)
-	_, ok = eng.PurchaseBuyOn("terra", "smelter", eng.State.Player.Level)
+	_, ok = eng.PurchaseBuyOn("terra", "smelter")
 	assert.True(t, ok, "unlocked after XP crossed level 2 threshold")
 }
 
@@ -57,7 +57,8 @@ func TestLevelGate_BlocksPurchaseBelowRequiredLevel(t *testing.T) {
 	eng.State.Worlds["terra"].Coins = 1_000_000_000.0
 
 	// quantum_extractor requires level 10; player starts at level 1.
-	_, ok := eng.PurchaseBuyOn("terra", "quantum_extractor", 1)
+	eng.State.Player.Level = 1
+	_, ok := eng.PurchaseBuyOn("terra", "quantum_extractor")
 
 	assert.False(t, ok, "purchase should be blocked by level gate")
 	assert.Equal(t, 0, eng.State.Worlds["terra"].BuyOnCounts["quantum_extractor"])
@@ -67,7 +68,8 @@ func TestLevelGate_AllowsPurchaseAtRequiredLevel(t *testing.T) {
 	eng := newTestEngine(t)
 	eng.State.Worlds["terra"].Coins = 1_000_000_000.0
 
-	_, ok := eng.PurchaseBuyOn("terra", "quantum_extractor", 10)
+	eng.State.Player.Level = 10
+	_, ok := eng.PurchaseBuyOn("terra", "quantum_extractor")
 
 	assert.True(t, ok, "purchase should succeed at required level")
 	assert.Equal(t, 1, eng.State.Worlds["terra"].BuyOnCounts["quantum_extractor"])
@@ -77,9 +79,11 @@ func TestLevelGate_DeepExcavator_RequiresLevel5(t *testing.T) {
 	eng := newTestEngine(t)
 	eng.State.Worlds["terra"].Coins = 1_000_000_000.0
 
-	_, ok := eng.PurchaseBuyOn("terra", "deep_excavator", 4)
+	eng.State.Player.Level = 4
+	_, ok := eng.PurchaseBuyOn("terra", "deep_excavator")
 	assert.False(t, ok, "deep_excavator should be blocked below level 5")
 
-	_, ok = eng.PurchaseBuyOn("terra", "deep_excavator", 5)
+	eng.State.Player.Level = 5
+	_, ok = eng.PurchaseBuyOn("terra", "deep_excavator")
 	assert.True(t, ok, "deep_excavator should be allowed at level 5")
 }

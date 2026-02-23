@@ -55,27 +55,32 @@ func New(
 }
 
 // ClickPower returns the coins generated per manual click in the given world.
-// globalClickMult is the combined global click multiplier from general shop purchases.
-func (e *Engine) ClickPower(worldID string, globalClickMult float64) float64 {
+func (e *Engine) ClickPower(worldID string) float64 {
 	ws, ok := e.State.Worlds[worldID]
 	if !ok {
 		return 0
 	}
 	base := 1.0 * ws.PrestigeMultiplier
-	if globalClickMult > 0 {
-		base *= globalClickMult
+	if m := e.globalClickMultiplier(); m > 0 {
+		base *= m
 	}
 	return base
 }
 
+// globalClickMultiplier returns the effective global click multiplier sourced
+// from engine-owned state. Phase 0 has no general shop effects yet.
+func (e *Engine) globalClickMultiplier() float64 {
+	return 1.0
+}
+
 // HandleClick records a manual click for the given world, adds coins, and
 // returns the number of coins earned by this click.
-func (e *Engine) HandleClick(worldID string, globalClickMult float64) float64 {
+func (e *Engine) HandleClick(worldID string) float64 {
 	ws, ok := e.State.Worlds[worldID]
 	if !ok {
 		return 0
 	}
-	earned := e.ClickPower(worldID, globalClickMult)
+	earned := e.ClickPower(worldID)
 	ws.Coins += earned
 	ws.TotalCoinsEarned += earned
 	ws.TotalClicks++
@@ -90,7 +95,7 @@ func (e *Engine) HandleClick(worldID string, globalClickMult float64) float64 {
 // PurchaseBuyOn attempts to buy one unit of the given buy-on in the given world.
 // Returns (cost, true) on success, or (0, false) if the purchase cannot proceed
 // (insufficient coins, level gate not met, or unknown world/buy-on).
-func (e *Engine) PurchaseBuyOn(worldID, buyOnID string, playerLevel int) (float64, bool) {
+func (e *Engine) PurchaseBuyOn(worldID, buyOnID string) (float64, bool) {
 	ws, ok := e.State.Worlds[worldID]
 	if !ok {
 		return 0, false
@@ -103,7 +108,7 @@ func (e *Engine) PurchaseBuyOn(worldID, buyOnID string, playerLevel int) (float6
 	if !ok {
 		return 0, false
 	}
-	if b.LevelRequirement() > playerLevel {
+	if b.LevelRequirement() > e.State.Player.Level {
 		return 0, false
 	}
 	count := ws.BuyOnCounts[buyOnID]

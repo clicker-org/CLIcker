@@ -89,7 +89,7 @@ func (m ShopTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case messages.NavConfirmMsg:
 		if m.cursor <= lastUnlocked {
 			b := items[m.cursor]
-			m.eng.PurchaseBuyOn(m.worldID, b.ID(), playerLevel)
+			m.eng.PurchaseBuyOn(m.worldID, b.ID())
 		}
 	}
 

@@ -46,7 +46,7 @@ func TestAchievement_UnlocksViaTick(t *testing.T) {
 		},
 	})
 
-	eng.HandleClick("terra", 1.0)
+	eng.HandleClick("terra")
 
 	// Tick exactly past the achievement check debounce interval.
 	events := eng.Tick(engine.AchievCheckInterval)

@@ -113,9 +113,9 @@ func TestBuyOnPurchase_CPSPreservedAcrossSaveLoad(t *testing.T) {
 	eng := newTestEngine(t)
 	eng.State.Worlds["terra"].Coins = 10_000.0
 
-	_, ok1 := eng.PurchaseBuyOn("terra", "auto_miner", 0)
+	_, ok1 := eng.PurchaseBuyOn("terra", "auto_miner")
 	require.True(t, ok1)
-	_, ok2 := eng.PurchaseBuyOn("terra", "auto_miner", 0)
+	_, ok2 := eng.PurchaseBuyOn("terra", "auto_miner")
 	require.True(t, ok2)
 
 	cpsAfterPurchase := eng.State.Worlds["terra"].CPS
@@ -145,7 +145,7 @@ func TestBuyOnPurchase_SaveLoad_TickEarnsCoins(t *testing.T) {
 	// Phase 1: earn CPS through a real purchase.
 	eng := newTestEngine(t)
 	eng.State.Worlds["terra"].Coins = 10_000.0
-	_, ok := eng.PurchaseBuyOn("terra", "auto_miner", 0)
+	_, ok := eng.PurchaseBuyOn("terra", "auto_miner")
 	require.True(t, ok)
 	cps := eng.State.Worlds["terra"].CPS
 	require.Greater(t, cps, 0.0)

@@ -79,7 +79,7 @@ func (m ClickTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.String() == " " {
-			gained := m.eng.HandleClick(m.worldID, 1.0)
+			gained := m.eng.HandleClick(m.worldID)
 			m.lastCoinGain = gained
 			m.clickFlash = true
 			m.coinFloat = true
@@ -132,7 +132,7 @@ func (m ClickTabModel) View() string {
 	}
 
 	// Stats.
-	clickPower := m.eng.ClickPower(m.worldID, 1.0)
+	clickPower := m.eng.ClickPower(m.worldID)
 	cps := 0.0
 	if ws := m.eng.State.Worlds[m.worldID]; ws != nil {
 		cps = ws.CPS
