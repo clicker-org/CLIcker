@@ -47,7 +47,7 @@ func NewOverviewModel(
 func (m OverviewModel) Init() tea.Cmd { return nil }
 
 func (m OverviewModel) Update(msg tea.Msg) (OverviewModel, tea.Cmd) {
-	worldIDs := m.worldReg.IDs()
+	worlds := m.worldVisuals()
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -55,22 +55,22 @@ func (m OverviewModel) Update(msg tea.Msg) (OverviewModel, tea.Cmd) {
 			return m, func() tea.Msg { return messages.NavigateToDashboardMsg{} }
 		}
 	case messages.NavConfirmMsg:
-		id := m.gmap.FocusedWorldID(worldIDs)
-		if id == "" && len(worldIDs) > 0 {
-			id = worldIDs[0]
+		id := m.gmap.FocusedWorldID(worlds)
+		if id == "" && len(worlds) > 0 {
+			id = worlds[0].ID
 		}
 		if id != "" {
 			wid := id
 			return m, func() tea.Msg { return messages.NavigateToWorldMsg{WorldID: wid} }
 		}
 	case messages.NavLeftMsg:
-		m.gmap.MoveLeft()
+		m.gmap.MoveLeft(len(worlds))
 	case messages.NavRightMsg:
-		m.gmap.MoveRight(len(worldIDs))
+		m.gmap.MoveRight(len(worlds))
 	case messages.NavUpMsg:
-		m.gmap.MoveUp()
+		m.gmap.MoveUp(len(worlds))
 	case messages.NavDownMsg:
-		m.gmap.MoveDown(len(worldIDs))
+		m.gmap.MoveDown(len(worlds))
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -86,13 +86,13 @@ func (m OverviewModel) Update(msg tea.Msg) (OverviewModel, tea.Cmd) {
 
 func (m OverviewModel) View() string {
 	bg := lipgloss.Color(m.t.Background())
-	worldIDs := m.worldReg.IDs()
+	worlds := m.worldVisuals()
 
 	// Galaxy map fills available space; gmap handles its own height via lipgloss.Place.
 	mapArea := lipgloss.NewStyle().
 		Width(m.width).
 		Background(bg).
-		Render(m.gmap.View(worldIDs, m.t))
+		Render(m.gmap.View(worlds, m.t))
 
 	divider := lipgloss.NewStyle().
 		Width(m.width).
@@ -119,4 +119,28 @@ func (m OverviewModel) View() string {
 		Render(helpLine)
 
 	return mapArea + "\n" + divider + "\n" + styledStats + "\n" + styledHelp
+}
+
+func (m OverviewModel) worldVisuals() []components.WorldVisual {
+	list := m.worldReg.List()
+	visuals := make([]components.WorldVisual, 0, len(list))
+	for _, w := range list {
+		var ws *world.WorldState
+		if m.gs != nil {
+			ws = m.gs.Worlds[w.ID()]
+		}
+		v := components.WorldVisual{
+			ID:          w.ID(),
+			Name:        w.Name(),
+			AccentColor: w.AccentColor(),
+		}
+		if ws != nil {
+			v.Completion = ws.CompletionPercent
+			v.Coins = ws.Coins
+			v.CPS = ws.CPS
+			v.Prestige = ws.PrestigeCount
+		}
+		visuals = append(visuals, v)
+	}
+	return visuals
 }
